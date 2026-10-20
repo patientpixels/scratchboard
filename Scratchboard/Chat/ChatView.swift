@@ -39,13 +39,13 @@ struct ChatView: View {
           .fill(Color(nsColor: .textBackgroundColor).opacity(0.5))
       }
       .frame(minHeight: 80, maxHeight: .infinity)
-      .layoutPriority(1)
 
       Divider()
         .padding(.vertical, Popup.verticalSeparatorPadding)
 
+      // Shares the height with the artefact: the conversation matters as much.
       TranscriptView(transcript: chat.transcript)
-        .frame(minHeight: 60, maxHeight: .infinity)
+        .frame(minHeight: 120, maxHeight: .infinity)
 
       Divider()
         .padding(.vertical, Popup.verticalSeparatorPadding)

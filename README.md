@@ -24,10 +24,11 @@ Then choose the model in Settings → AI. Recommended models, measured with `scr
 
 | Mac memory | Model | Size | Notes |
 |---|---|---|---|
-| 8 GB | `qwen3.5:4b-nvfp4` | 4 GB | Fast, handles everyday edits |
-| 16 GB | `qwen3.5:9b-nvfp4` | 7 GB | Good default |
-| 32 GB+ | `gpt-oss:20b` | 13 GB | Most reliable, a little slower |
-| 32 GB+ | `qwen3.5:35b-a3b-nvfp4` | 21 GB | Fastest; sometimes asks instead of guessing on vague prompts |
+| 8 GB | `qwen3.5:4b-nvfp4` | 4 GB | Fast (~2 s per edit), handles everyday edits |
+| 16 GB+ | `qwen3.5:9b-nvfp4` | 7 GB | Good default (~3 s per edit) |
+| 16 GB+ | `gpt-oss:20b` | 13 GB | Most careful, asks when a request is vague, but ~8 s per edit |
+
+Scratchboard turns off "thinking" for Ollama models: with it on, Qwen models often end a turn without replying. `qwen3.5:35b-a3b` is fast but sometimes claims edits it didn't make, so it isn't recommended.
 
 Run `scripts/eval <model>...` to compare models on your own Mac.
 

@@ -8,6 +8,9 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
   let model: String
   let apiKey: String?
   var session: URLSession = .shared
+  // Sent as `reasoning_effort` when set. Ollama uses "none" to turn off
+  // thinking, which otherwise makes Qwen models end turns without a reply.
+  var reasoningEffort: String?
 
   var displayName: String { model }
 
@@ -141,6 +144,7 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
     }
     var body: [String: JSONValue] = ["model": .string(model), "messages": .array(history), "stream": .bool(true)]
     if !tools.isEmpty { body["tools"] = .array(tools) }
+    if let reasoningEffort { body["reasoning_effort"] = .string(reasoningEffort) }
     request.httpBody = try JSONEncoder().encode(JSONValue.object(body))
 
     let (bytes, response) = try await session.bytes(for: request)

@@ -69,6 +69,7 @@ class LLMProviderFactoryTests: XCTestCase {
     XCTAssertEqual(ollama.baseURL, URL(string: "http://localhost:11434/v1"))
     XCTAssertEqual(ollama.model, "qwen3:8b")
     XCTAssertNil(ollama.apiKey)
+    XCTAssertEqual(ollama.reasoningEffort, "none")
   }
 
   func testOllamaWithoutModel() {

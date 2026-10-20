@@ -77,8 +77,19 @@ final class OpenAICompatibleProviderTests: XCTestCase {
     for request in StubURLProtocol.requests {
       XCTAssertNil(request.headers["Authorization"])
       XCTAssertNil(request.body["tools"])
+      XCTAssertNil(request.body["reasoning_effort"])
       XCTAssertEqual(request.body["messages"], .array([message("user", "Hi")]))
     }
+  }
+
+  func testSendsReasoningEffortWhenSet() async throws {
+    StubURLProtocol.enqueue(chunks: [sse(text("ok")), done])
+    var provider = makeProvider(apiKey: nil)
+    provider.reasoningEffort = "none"
+
+    _ = try await collect(provider.run(instructions: "", messages: [user("Hi")], tools: []))
+
+    XCTAssertEqual(StubURLProtocol.requests.first?.body["reasoning_effort"], .string("none"))
   }
 
   // MARK: - Streaming

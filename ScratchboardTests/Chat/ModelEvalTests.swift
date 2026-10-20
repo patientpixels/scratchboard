@@ -23,6 +23,7 @@ final class ModelEvalTests: ChatTestCase {
     let seconds: Double
     let error: String?
     let result: String
+    let reply: String
   }
 
   private static let instructionsClip = """
@@ -94,7 +95,8 @@ final class ModelEvalTests: ChatTestCase {
     var rows: [Row] = []
     var loadTimes: [String: Double] = [:]
     for model in models {
-      let provider = OpenAICompatibleProvider(baseURL: baseURL, model: model, apiKey: nil)
+      // Same settings as the app's Ollama provider.
+      let provider = OpenAICompatibleProvider(baseURL: baseURL, model: model, apiKey: nil, reasoningEffort: "none")
       loadTimes[model] = await warmUp(provider)
       for task in tasks {
         for _ in 1...runs {
@@ -119,7 +121,7 @@ final class ModelEvalTests: ChatTestCase {
     let recorder = RecordingProvider(provider)
     guard let session = ChatSession.open(for: textItem(task.clip), provider: recorder, clipboard: clipboard) else {
       return Row(model: model, task: task.name, passed: false, toolCalled: false, leaked: false,
-                 seconds: 0, error: "no session", result: "")
+                 seconds: 0, error: "no session", result: "", reply: "")
     }
 
     let start = ContinuousClock.now
@@ -135,6 +137,10 @@ final class ModelEvalTests: ChatTestCase {
       if case .error(_, let message) = entry { return message }
       return nil
     }.first
+    let reply = session.transcript.compactMap { entry -> String? in
+      if case .assistant(_, let text) = entry { return text }
+      return nil
+    }.joined(separator: " / ")
     let leaked = recorder.rawText.contains("<artefact") || recorder.rawText.contains("Request:")
       || (task.clip.count > 40 && recorder.rawText.contains(String(task.clip.prefix(40))))
     return Row(
@@ -145,7 +151,8 @@ final class ModelEvalTests: ChatTestCase {
       leaked: leaked,
       seconds: seconds,
       error: error ?? (seconds >= 240 ? "timeout" : nil),
-      result: result
+      result: result,
+      reply: reply
     )
   }
 
@@ -157,12 +164,13 @@ final class ModelEvalTests: ChatTestCase {
 
     var out = ["SCRATCHBOARD_EVAL_REPORT_BEGIN", "# Model evaluation", "",
                "\(tasks.count) tasks × \(runs) runs per model, real chat loop via the OpenAI-compatible provider.", "",
-               "| Model | Passed | Tool called | Leaked into chat | Median turn | Load |",
-               "|---|---|---|---|---|---|"]
+               "| Model | Passed | Tool called | Replied in chat | Leaked into chat | Median turn | Load |",
+               "|---|---|---|---|---|---|---|"]
     for model in models {
       let modelRows = rows.filter { $0.model == model }
       out.append("| `\(model)` | \(modelRows.filter(\.passed).count)/\(modelRows.count) "
         + "| \(modelRows.filter(\.toolCalled).count)/\(modelRows.count) "
+        + "| \(modelRows.filter { !$0.reply.isEmpty }.count)/\(modelRows.count) "
         + "| \(modelRows.filter(\.leaked).count) "
         + "| \(String(format: "%.1f s", median(modelRows.map(\.seconds)))) "
         + "| \(String(format: "%.1f s", loadTimes[model] ?? 0)) |")
@@ -182,7 +190,13 @@ final class ModelEvalTests: ChatTestCase {
     for row in rows where !row.passed {
       let detail = row.error ?? (row.result.isEmpty ? "no new version" : "check failed")
       let excerpt = row.result.prefix(160).replacingOccurrences(of: "\n", with: "⏎")
-      out.append("- `\(row.model)` \(row.task): \(detail)\(excerpt.isEmpty ? "" : " — `\(excerpt)`")")
+      out.append("- `\(row.model)` \(row.task): \(detail)\(excerpt.isEmpty ? "" : " — `\(excerpt)`")"
+        + (row.reply.isEmpty ? "" : " · reply: \"\(row.reply.prefix(120))\""))
+    }
+
+    out += ["", "## Replies", ""]
+    for row in rows {
+      out.append("- `\(row.model)` \(row.task): \(row.reply.isEmpty ? "(none)" : "\"\(row.reply.prefix(120))\"")")
     }
     out.append("SCRATCHBOARD_EVAL_REPORT_END")
     return out.joined(separator: "\n")

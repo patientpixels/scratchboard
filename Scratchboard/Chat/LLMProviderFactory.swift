@@ -93,7 +93,7 @@ enum LLMProviderFactory {
       guard !model.isEmpty else {
         return .unavailable("Choose an Ollama model in Settings → AI")
       }
-      return .provider(OpenAICompatibleProvider(baseURL: url, model: model, apiKey: nil))
+      return .provider(OpenAICompatibleProvider(baseURL: url, model: model, apiKey: nil, reasoningEffort: "none"))
     case .openAICompatible:
       guard let url = validatedBaseURL(configuration.baseURL) else {
         return .unavailable("Set a valid base URL in Settings → AI")
