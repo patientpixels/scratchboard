@@ -108,13 +108,17 @@ class AppState: Sendable {
     }
   }
 
+  // Tests inject a provider and a private pasteboard.
   @MainActor
-  func startChat() {
+  func startChat(
+    provider makeProvider: @MainActor () -> (any LLMProvider)? = LLMProviderFactory.makeCurrent,
+    clipboard: Clipboard = .shared
+  ) {
     guard chat == nil,
           !navigator.isMultiSelectInProgress,
           let item = navigator.leadHistoryItem,
           !item.hasImage, !item.hasFileURLs,
-          let session = ChatSession.open(for: item.item, provider: LLMProviderFactory.makeCurrent()) else {
+          let session = ChatSession.open(for: item.item, provider: makeProvider(), clipboard: clipboard) else {
       return
     }
 

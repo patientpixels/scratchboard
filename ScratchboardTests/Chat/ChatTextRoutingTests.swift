@@ -12,14 +12,20 @@ final class ChatTextRoutingTests: XCTestCase {
   private var controller: ChatController!
   private var artefact: ChatTextView!
   private var prompt: ChatTextView!
+  // XCTest creates an instance per test, so each test gets its own pasteboard.
+  private nonisolated let pasteboardName = NSPasteboard.Name("ScratchboardTests.\(UUID().uuidString)")
 
   // Sync on purpose: an async setUp runs inside a main-queue block, so the
   // main-queue work ChatController schedules would never run while spinning.
   private func setUpChat() throws {
     History.shared.clearAll()
-    let item = History.shared.add(textItem("hello"))
+    // Not added to History.shared: the test host's (never shown) panel renders
+    // that list whenever the run loop spins, and keeps removed rows alive. A
+    // row for an item deleted by `clearAll()` after closing the chat linked it
+    // to an edit session would be re-rendered and crash on its contents.
+    let item = HistoryItemDecorator(textItem("hello"))
     appState.navigator.select(item: item)
-    appState.startChat()
+    appState.startChat(provider: { nil }, clipboard: Clipboard(pasteboard: NSPasteboard(name: pasteboardName)))
     let session = try XCTUnwrap(appState.chat)
 
     controller = ChatController(session: session)
@@ -49,9 +55,12 @@ final class ChatTextRoutingTests: XCTestCase {
   }
 
   override func tearDown() {
+    let pasteboardName = pasteboardName
     MainActor.assumeIsolated {
       AppState.shared.endChat()
+      AppState.shared.navigator.select(item: nil)
       History.shared.clearAll()
+      NSPasteboard(name: pasteboardName).releaseGlobally()
     }
     super.tearDown()
   }
