@@ -52,6 +52,11 @@ nonisolated enum TranscriptEntry: Identifiable, Equatable, Codable, Sendable {
 // - `close()` cancels a running turn, persists the session (unless "Keep edit
 //   history" is off) and, if the current version isn't v1, saves it as a
 //   history item linked to the session.
+// - `reopen()` makes a closed session usable again (the panel resumes the last
+//   chat while `isLastWriteOnPasteboard`). Closing it again updates the same
+//   stored session and saves the current version only if it isn't saved yet.
+// - Assistant text is sanitized: artefact blocks and echoed prompt lines never
+//   reach the transcript.
 // State lives in memory; it's written to an `EditSession` only on close.
 @MainActor
 @Observable
@@ -64,9 +69,19 @@ final class ChatSession {
   var current: ArtefactVersion? { versions.first { $0.number == currentNumber } }
   var providerName: String? { provider?.displayName }
 
+  // True while the pasteboard still holds the session's last write (a
+  // version, the saved final version or a copied selection), i.e. nothing
+  // else has been copied since.
+  var isLastWriteOnPasteboard: Bool {
+    lastWriteChangeCount == clipboard.pasteboardChangeCount
+  }
+
   @ObservationIgnored weak var undoManager: UndoManager?
   // The history item saved on close, if any.
   @ObservationIgnored private(set) var savedItem: HistoryItem?
+  @ObservationIgnored private var savedNumber: Int?
+  @ObservationIgnored private var lastWriteChangeCount: Int?
+  @ObservationIgnored private var lastWriteIsSelection = false
 
   @ObservationIgnored private let provider: (any LLMProvider)?
   @ObservationIgnored private let clipboard: Clipboard
@@ -81,6 +96,10 @@ final class ChatSession {
   @ObservationIgnored private var executedTools = 0
   @ObservationIgnored private var seenToolCalls = 0
   @ObservationIgnored private var heldEntries: [(tool: Int, entry: TranscriptEntry)] = []
+  // The raw text streamed into the current assistant entry, which shows it
+  // sanitized. The segment began when the transcript had `start` entries; it
+  // has an entry only once something visible is left.
+  @ObservationIgnored private var assistantSegment = (start: -1, id: UUID(), raw: "")
 
   // Resumes the session linked to `item` at the version the item corresponds
   // to, or starts a new one with the item's text as v1. Returns nil for clips
@@ -165,12 +184,24 @@ final class ChatSession {
     undoManager?.removeAllActions(withTarget: self)
 
     let session = Defaults[.keepEditHistory] ? persist() : nil
-    if currentNumber != 1, let current {
+    if currentNumber != 1, let current, !isSaved(current) {
       saveToHistory(current, linkingTo: session)
     }
     if session != nil {
       Storage.shared.deleteOrphanedEditSessions()
     }
+  }
+
+  // Makes a closed session usable again, at its current version. The undo
+  // stack starts empty, as when reopening a stored session.
+  func reopen() {
+    isClosed = false
+  }
+
+  // Writes text selected in the chat to the pasteboard. It's scratch work, so
+  // it's transient and doesn't end up in history.
+  func copySelection(_ text: String) {
+    write(text, transient: true, isSelection: true)
   }
 
   // MARK: Tools
@@ -210,6 +241,7 @@ final class ChatSession {
         case .textDelta(let delta):
           appendAssistantText(delta)
         case .toolCall:
+          showAssistantText(streaming: false)
           seenToolCalls += 1
           releaseHeldEntries(upTo: seenToolCalls)
         case .toolResult:
@@ -218,6 +250,7 @@ final class ChatSession {
       }
     } catch {
       if self.turn == turn, !(error is CancellationError) {
+        showAssistantText(streaming: false)
         releaseHeldEntries()
         transcript.append(.error(id: UUID(), message: error.localizedDescription))
       }
@@ -228,6 +261,7 @@ final class ChatSession {
   }
 
   private func endTurn() {
+    showAssistantText(streaming: false)
     releaseHeldEntries()
     turn = nil
     turnTask = nil
@@ -242,10 +276,31 @@ final class ChatSession {
   }
 
   private func appendAssistantText(_ delta: String) {
-    if case .assistant(let id, let text) = transcript.last {
-      transcript[transcript.count - 1] = .assistant(id: id, text: text + delta)
-    } else {
-      transcript.append(.assistant(id: UUID(), text: delta))
+    if !isInAssistantSegment {
+      assistantSegment = (transcript.count, UUID(), "")
+    }
+    assistantSegment.raw += delta
+    showAssistantText(streaming: true)
+  }
+
+  // Text streams into the last assistant entry until another entry follows.
+  private var isInAssistantSegment: Bool {
+    let (start, id, _) = assistantSegment
+    return transcript.count == start || (transcript.count == start + 1 && transcript.last?.id == id)
+  }
+
+  // While streaming, a trailing partial artefact tag or echo line is held
+  // back; once the text is complete (end of turn, tool call), it's shown.
+  private func showAssistantText(streaming: Bool) {
+    guard isInAssistantSegment else { return }
+    let (start, id, raw) = assistantSegment
+    let text = Self.sanitizeAssistantText(raw, streaming: streaming)
+    let isVisible = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    switch (transcript.count > start, isVisible) {
+    case (true, true): transcript[start] = .assistant(id: id, text: text)
+    case (true, false): transcript.removeLast()
+    case (false, true): transcript.append(.assistant(id: id, text: text))
+    case (false, false): break
     }
   }
 
@@ -297,7 +352,13 @@ final class ChatSession {
 
   private func copyCurrent() {
     guard let current else { return }
-    clipboard.copyUnrecorded(current.text, transient: true)
+    write(current.text, transient: true)
+  }
+
+  private func write(_ text: String, transient: Bool, isSelection: Bool = false) {
+    clipboard.copyUnrecorded(text, transient: transient)
+    lastWriteChangeCount = clipboard.pasteboardChangeCount
+    lastWriteIsSelection = isSelection
   }
 
   // MARK: Persistence
@@ -306,7 +367,7 @@ final class ChatSession {
     guard stored != nil || versions.count > 1 || !transcript.isEmpty else { return nil }
 
     let session: EditSession
-    if let stored {
+    if let stored, !stored.isDeleted {
       session = stored
     } else {
       session = EditSession()
@@ -315,6 +376,8 @@ final class ChatSession {
         item.editSession = session
         item.editSessionVersion = 1
       }
+      // Closing a reopened session updates this one.
+      stored = session
     }
 
     session.versions = versions
@@ -337,7 +400,17 @@ final class ChatSession {
       historyItem.editSessionVersion = version.number
     }
 
-    clipboard.copyUnrecorded(version.text, transient: false)
+    // A selection copied last is what the user wants to paste next.
+    if !(lastWriteIsSelection && isLastWriteOnPasteboard) {
+      write(version.text, transient: false)
+    }
     savedItem = History.shared.add(historyItem).item
+    savedNumber = version.number
+  }
+
+  // Whether an earlier close of this (reopened) session already saved `version`.
+  private func isSaved(_ version: ArtefactVersion) -> Bool {
+    guard let savedItem, !savedItem.isDeleted, savedItem.modelContext != nil else { return false }
+    return savedNumber == version.number
   }
 }

@@ -58,6 +58,7 @@ final class ChatTextRoutingTests: XCTestCase {
     let pasteboardName = pasteboardName
     MainActor.assumeIsolated {
       AppState.shared.endChat()
+      AppState.shared.lastChat = nil
       AppState.shared.navigator.select(item: nil)
       History.shared.clearAll()
       NSPasteboard(name: pasteboardName).releaseGlobally()
@@ -112,6 +113,67 @@ final class ChatTextRoutingTests: XCTestCase {
     XCTAssertNil(appState.chat)
   }
 
+  func testCommandCWithSelectionCopiesTransientAndKeepsResume() throws {
+    try setUpChat()
+    let session = try XCTUnwrap(appState.chat)
+    press(.tab)
+    artefact.setSelectedRange(NSRange(location: 0, length: 3))
+
+    press(.c, [.command])
+
+    XCTAssertTrue(appState.chat === session)
+    let pasteboard = NSPasteboard(name: pasteboardName)
+    XCTAssertEqual(pasteboard.string(forType: .string), "hel")
+    XCTAssertTrue(pasteboard.types?.contains(.transient) ?? false)
+    XCTAssertTrue(session.isLastWriteOnPasteboard)
+
+    appState.endChat()
+    XCTAssertTrue(appState.resumeChat())
+    XCTAssertTrue(appState.chat === session)
+  }
+
+  func testCommandCWithPromptSelectionCopiesTransient() throws {
+    try setUpChat()
+    prompt.insertText("make it short", replacementRange: prompt.selectedRange())
+    prompt.setSelectedRange(NSRange(location: 8, length: 5))
+
+    press(.c, [.command])
+
+    XCTAssertNotNil(appState.chat)
+    let pasteboard = NSPasteboard(name: pasteboardName)
+    XCTAssertEqual(pasteboard.string(forType: .string), "short")
+    XCTAssertTrue(pasteboard.types?.contains(.transient) ?? false)
+  }
+
+  // Stands in for the transcript: any other text view in the chat's window.
+  func testCommandCElsewhereCopiesSelectionTransient() throws {
+    try setUpChat()
+    let other = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+    other.string = "assistant reply"
+    window.contentView?.addSubview(other)
+    window.makeFirstResponder(other)
+    other.setSelectedRange(NSRange(location: 10, length: 5))
+
+    controller.copyOrClose(in: window, event: keyEvent(.c, [.command]))
+
+    XCTAssertNotNil(appState.chat)
+    let pasteboard = NSPasteboard(name: pasteboardName)
+    XCTAssertEqual(pasteboard.string(forType: .string), "reply")
+    XCTAssertTrue(pasteboard.types?.contains(.transient) ?? false)
+  }
+
+  func testCommandCElsewhereWithoutSelectionCloses() throws {
+    try setUpChat()
+    let other = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+    other.string = "assistant reply"
+    window.contentView?.addSubview(other)
+    window.makeFirstResponder(other)
+
+    controller.copyOrClose(in: window, event: keyEvent(.c, [.command]))
+
+    XCTAssertNil(appState.chat)
+  }
+
   func testUndoRevertsPromptTyping() throws {
     try setUpChat()
     prompt.insertText("hi", replacementRange: prompt.selectedRange())
@@ -141,6 +203,17 @@ final class ChatTextRoutingTests: XCTestCase {
   // MARK: Helpers
 
   private func press(_ key: Key, _ modifiers: NSEvent.ModifierFlags = []) {
+    let event = keyEvent(key, modifiers)
+    // Mirrors NSApplication: key equivalents first, then the first responder.
+    // The window isn't key, so NSWindow.sendEvent would drop the event.
+    if modifiers.contains(.command), window.performKeyEquivalent(with: event) {
+      return
+    }
+    window.firstResponder?.keyDown(with: event)
+    spinRunLoop()
+  }
+
+  private func keyEvent(_ key: Key, _ modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
     let characters: String
     switch key {
     case .tab: characters = modifiers.contains(.shift) ? "\u{19}" : "\t"
@@ -148,7 +221,7 @@ final class ChatTextRoutingTests: XCTestCase {
     case .escape: characters = "\u{1b}"
     default: characters = key.rawValue
     }
-    let event = NSEvent.keyEvent(
+    return NSEvent.keyEvent(
       with: .keyDown,
       location: .zero,
       modifierFlags: modifiers,
@@ -160,13 +233,6 @@ final class ChatTextRoutingTests: XCTestCase {
       isARepeat: false,
       keyCode: Sauce.shared.keyCode(for: key)
     )!
-    // Mirrors NSApplication: key equivalents first, then the first responder.
-    // The window isn't key, so NSWindow.sendEvent would drop the event.
-    if modifiers.contains(.command), window.performKeyEquivalent(with: event) {
-      return
-    }
-    window.firstResponder?.keyDown(with: event)
-    spinRunLoop()
   }
 
   private func spinRunLoop() {

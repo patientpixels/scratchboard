@@ -130,6 +130,12 @@ final class ChatTextView: NSTextView {
     return true
   }
 
+  // Covers ⌘C (via ChatController) and Copy from the context menu.
+  override func copy(_ sender: Any?) {
+    guard let controller else { return super.copy(sender) }
+    controller.copySelection(selectedText)
+  }
+
   override func resignFirstResponder() -> Bool {
     let resigned = super.resignFirstResponder()
     if resigned {
@@ -169,5 +175,14 @@ final class ChatTextView: NSTextView {
         .foregroundColor: NSColor.placeholderTextColor
       ]
     )
+  }
+}
+
+extension NSTextView {
+  var selectedText: String {
+    selectedRanges
+      .map { (string as NSString).substring(with: $0.rangeValue) }
+      .filter { !$0.isEmpty }
+      .joined(separator: "\n")
   }
 }

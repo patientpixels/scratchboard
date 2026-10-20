@@ -20,6 +20,12 @@ class AppState: Sendable {
   var isEditingItem: Bool = false
   // While set, the panel shows ChatView instead of the history list.
   var chat: ChatSession?
+  // The last closed chat. Opening the panel resumes it while nothing else has
+  // been copied since its last write (see `resumeChat()`). In private mode
+  // this is the only place the session lives.
+  @ObservationIgnored var lastChat: ChatSession?
+  // Room the panel gets for a chat.
+  static let chatHeight: CGFloat = 560
   var suppressPopupAutoClose: Bool {
     return navigator.isDragAndDropInProgress || isEditingItem
   }
@@ -127,11 +133,12 @@ class AppState: Sendable {
     if previewWasOpen {
       preview.togglePreview()
     }
+    lastChat = nil
     chat = session
 
     // The list may have sized the panel down to a few rows; give the chat room.
     guard let panel = appDelegate?.panel else { return }
-    let height = max(panel.frame.height, min(Defaults[.windowSize].height, 560))
+    let height = max(panel.frame.height, min(Defaults[.windowSize].height, Self.chatHeight))
     guard height > panel.frame.height else { return }
     Task {
       if previewWasOpen {
@@ -149,6 +156,24 @@ class AppState: Sendable {
     chat.close()
     // Undo actions refer to the closed session and its text views.
     chat.undoManager?.removeAllActions()
+    lastChat = chat
+  }
+
+  // Called as the panel opens: goes back into the last chat, at its current
+  // version, if the pasteboard still holds that chat's last write. Once
+  // something else has been copied, the chat is dropped and the panel shows
+  // the list (Tab on the clip still resumes a stored session).
+  @MainActor
+  @discardableResult
+  func resumeChat() -> Bool {
+    guard chat == nil, let session = lastChat else { return false }
+    lastChat = nil
+    guard session.isLastWriteOnPasteboard else { return false }
+
+    session.reopen()
+    preview.disableAutoOpen()
+    chat = session
+    return true
   }
 
   func openAbout() {

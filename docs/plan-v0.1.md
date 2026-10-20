@@ -36,7 +36,9 @@ The chat takes over the whole panel:
 - **Transcript:** prompts, assistant messages, and version events (`→ v3`, `user edited → v4`, `undo → v2`). The model gets all of it, so it can refer to discarded versions.
 - **Sessions persist by default.** Scratchboard is a history manager, so it keeps the full history of edits. The session (transcript + every version) is stored with the clip it started from. Tab on the original clip or on the saved result reopens the session at that version, and you continue where you left off.
 - After reopening, the in-memory undo stack starts empty; ⌘Z then steps back through the stored versions.
-- **Private mode:** Settings → "Keep edit history" (default on). When it's off, sessions live only in memory and are discarded on close. Only the final version goes to history, as usual.
+- **Resume:** opening the panel after closing a chat goes straight back into that chat, at its current version, as long as nothing else has been copied since the chat's last own write (version auto-copies, the saved final version, copies from inside the chat). Afterwards the panel opens on the list as usual.
+- **Copies from inside the chat** (⌘C with a selection in the artefact, prompt or transcript) are transient, so they stay out of history. A selection copied last stays on the pasteboard when the dialog closes.
+- **Private mode:** Settings → "Keep edit history" (default on). When it's off, sessions live only in memory and are discarded once something else is copied after closing (until then the chat can be resumed). Only the final version goes to history, as usual.
 - Sessions follow the clip lifecycle: deleting a clip, clearing history, or the history size limit removes a session once no clip links to it. Pinned clips keep theirs.
 
 ## Agent loop
@@ -46,7 +48,7 @@ Each turn, the model gets a system prompt, the transcript with every version lab
 - `write_artefact(text)` creates a new version
 - `restore_version(n)` makes vN current by copying it as a new version, so the history stays linear
 
-The loop runs until the model replies without calling a tool. The model is told to put artefact content only in tool calls, never in chat text, so every version can be pasted as-is.
+The loop runs until the model replies without calling a tool. The model is told to put artefact content only in tool calls, never in chat text, so every version can be pasted as-is. Chat text is sanitized regardless: `<artefact>` blocks and echoed `Request:` / `Current version:` lines are removed.
 
 Both providers support tool calling: FoundationModels via its `Tool` protocol, and OpenAI-compatible endpoints via the `tools` parameter. Apple's on-device model has a small context window, so it gets the current version plus the last few turns instead of the full history.
 

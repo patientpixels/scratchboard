@@ -74,4 +74,44 @@ extension ChatSession {
   private static func block(_ version: ArtefactVersion) -> String {
     "<artefact version=\"\(version.number)\">\n\(version.text)\n</artefact>"
   }
+
+  // Small models sometimes echo the rendered prompt instead of chatting. Chat
+  // text must never carry artefact content, so this removes artefact blocks
+  // (unterminated ones up to the end) and lines echoing the scaffolding of the
+  // last message. While `streaming`, a trailing start of either is held back
+  // so it doesn't flash. Text without any of this is returned unchanged.
+  nonisolated static func sanitizeAssistantText(_ text: String, streaming: Bool) -> String {
+    var result = text.replacingOccurrences(
+      of: #"<artefact\b(?:[^>]*>[\s\S]*?(?:</artefact\s*>|\z)|[^>]*\z)|</artefact\s*>"#,
+      with: "",
+      options: [.regularExpression, .caseInsensitive]
+    )
+
+    var lines = result.components(separatedBy: "\n")
+    lines.removeAll { line in
+      let line = line.trimmingCharacters(in: .whitespaces).lowercased()
+      return echoPrefixes.contains { line.hasPrefix($0) }
+    }
+    if streaming, let last = lines.last, isPartialMarker(last.trimmingCharacters(in: .whitespaces)) {
+      lines.removeLast()
+    }
+    result = lines.joined(separator: "\n")
+    if streaming, let tag = result.range(of: "<", options: .backwards),
+       isPartialMarker(String(result[tag.lowerBound...])) {
+      result.removeSubrange(tag.lowerBound...)
+    }
+
+    guard result != text else { return text }
+    return result
+      .replacingOccurrences(of: #"\n\s*\n(\s*\n)+"#, with: "\n\n", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  nonisolated private static let echoPrefixes = ["request:", "current version:"]
+
+  // Whether `text` could still grow into an artefact tag or an echo line.
+  nonisolated private static func isPartialMarker(_ text: String) -> Bool {
+    let text = text.lowercased()
+    return !text.isEmpty && (echoPrefixes + ["<artefact"]).contains { $0.hasPrefix(text) }
+  }
 }

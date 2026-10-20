@@ -9,6 +9,8 @@ class Clipboard {
 
   private var onNewCopyHooks: [OnNewCopyHook] = []
   var changeCount: Int
+  // The pasteboard's live change count; `changeCount` lags until the next check.
+  var pasteboardChangeCount: Int { pasteboard.changeCount }
 
   private let pasteboard: NSPasteboard
 

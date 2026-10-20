@@ -159,6 +159,11 @@ class Popup {
         return nil
       }
 
+      // A resumed chat has no list to cycle through; pressing again closes.
+      if state == .opening, AppState.shared.chat != nil {
+        state = .toggle
+      }
+
       if state == .opening {
         state = .cycle
         // Next 'if' will highlight next item and then return nil

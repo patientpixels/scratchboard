@@ -15,12 +15,19 @@ final class ChatController: NSObject, NSTextViewDelegate {
   private var displayedVersion: Int?
   private weak var observedWindow: NSWindow?
   private var didFocusPrompt = false
+  private var keyMonitor: Any?
 
   // Edits must not reach a session that was closed, e.g. while views tear down.
   private var isActive: Bool { AppState.shared.chat === session }
 
   init(session: ChatSession) {
     self.session = session
+  }
+
+  isolated deinit {
+    if let keyMonitor {
+      NSEvent.removeMonitor(keyMonitor)
+    }
   }
 
   func perform(_ action: ChatKeyAction, in textView: ChatTextView) {
@@ -66,6 +73,24 @@ final class ChatController: NSObject, NSTextViewDelegate {
     let appState = AppState.shared
     appState.endChat()
     appState.popup.close()
+  }
+
+  // Copies from inside the chat are scratch work: written as transient items
+  // that count as the session's own write, so the chat still resumes.
+  func copySelection(_ text: String) {
+    guard isActive, !text.isEmpty else { return }
+    session.copySelection(text)
+  }
+
+  // ⌘C outside the two text views, e.g. in the transcript: copies the
+  // selection like ChatTextView does, or closes if nothing is selected.
+  func copyOrClose(in window: NSWindow, event: NSEvent) {
+    guard isActive else { return }
+    if let text = selectedText(in: window, event: event), !text.isEmpty {
+      copySelection(text)
+    } else {
+      close()
+    }
   }
 
   func commitArtefact() {
@@ -118,6 +143,12 @@ final class ChatController: NSObject, NSTextViewDelegate {
       )
     }
 
+    if keyMonitor == nil {
+      keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        self?.handleCopyKey(event) ?? event
+      }
+    }
+
     // SwiftUI may still move the view around; focus once it has settled.
     if textView.role == .prompt, !didFocusPrompt {
       DispatchQueue.main.async { [weak self] in
@@ -130,6 +161,38 @@ final class ChatController: NSObject, NSTextViewDelegate {
   // The popup closes on outside clicks without the editor losing focus.
   @objc private func windowWillClose(_ notification: Notification) {
     commitArtefact()
+  }
+
+  // The chat's text views route ⌘C themselves; this catches it elsewhere in
+  // the chat, before AppKit's own copy records the selection in history.
+  private func handleCopyKey(_ event: NSEvent) -> NSEvent? {
+    guard isActive,
+          let window = observedWindow, event.window === window,
+          !(window.firstResponder is ChatTextView),
+          let (key, modifiers) = KeyChord.keyAndModifiers(event),
+          key == .c, modifiers == [.command] else {
+      return event
+    }
+
+    copyOrClose(in: window, event: event)
+    return nil
+  }
+
+  private func selectedText(in window: NSWindow, event: NSEvent) -> String? {
+    if let textView = window.firstResponder as? NSTextView {
+      return textView.selectedText
+    }
+
+    // Other selectable views (SwiftUI's selectable Text) only offer their
+    // selection through copy. Let them copy as AppKit would, synchronously, so
+    // the clipboard check can't record it before it's rewritten as transient.
+    let pasteboard = NSPasteboard.general
+    let changeCount = pasteboard.changeCount
+    guard window.performKeyEquivalent(with: event) || NSApp.mainMenu?.performKeyEquivalent(with: event) == true,
+          pasteboard.changeCount != changeCount else {
+      return nil
+    }
+    return pasteboard.string(forType: .string)
   }
 
   @discardableResult
