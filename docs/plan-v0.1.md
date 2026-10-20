@@ -22,7 +22,7 @@ The chat takes over the whole panel:
 | Key | Effect |
 |---|---|
 | Tab (text clip highlighted in list) | Open chat, prompt focused. The clip becomes v1. |
-| ↩ | Newline, always |
+| ↩ | Newline; in an empty prompt: copy the current version and close |
 | ⌘↩ | Send prompt |
 | Esc / ⌘C | Close the dialog (cancels any running turn). Current version is already on the pasteboard. |
 | ⌘Z / ⇧⌘Z | Step back / forward through versions; transcript stays intact |

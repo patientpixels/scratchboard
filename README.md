@@ -16,7 +16,7 @@ Free and open source (MIT). Built on [Maccy](https://github.com/p0deje/Maccy).
 | Key | In the chat |
 |---|---|
 | ⌘↩ | Send |
-| ↩ | Newline |
+| ↩ | Newline; in an empty prompt, copy the current version and close |
 | ⌘Z / ⇧⌘Z | Step back / forward through versions (the conversation stays) |
 | Tab / ⇧Tab | Move between the prompt and the text, which you can edit yourself |
 | Esc, ⌘C | Close; the current version is on the clipboard |

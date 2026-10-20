@@ -101,6 +101,17 @@ final class ChatTextRoutingTests: XCTestCase {
     XCTAssertNotNil(appState.chat)
   }
 
+  func testReturnInEmptyPromptCopiesCurrentVersionAndCloses() throws {
+    try setUpChat()
+    let session = try XCTUnwrap(appState.chat)
+    session.copySelection("hel")
+
+    press(.return)
+
+    XCTAssertNil(appState.chat)
+    XCTAssertEqual(NSPasteboard(name: pasteboardName).string(forType: .string), "hello")
+  }
+
   func testEscapeCloses() throws {
     try setUpChat()
     press(.escape)

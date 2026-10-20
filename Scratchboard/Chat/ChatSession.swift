@@ -359,7 +359,9 @@ final class ChatSession {
     }
   }
 
-  private func copyCurrent() {
+  // Writes the current version to the pasteboard (transient), e.g. to replace
+  // a selection copied from the chat.
+  func copyCurrent() {
     guard let current else { return }
     write(current.text, transient: true)
   }

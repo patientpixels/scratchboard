@@ -80,13 +80,18 @@ final class ChatKeyHandlingTests: XCTestCase {
       _ key: Key,
       _ modifiers: NSEvent.ModifierFlags = [],
       _ role: ChatTextView.Role = .prompt,
-      selection: Bool = false
+      selection: Bool = false,
+      empty: Bool = false
     ) -> ChatKeyAction? {
-      ChatKeyAction(key: key, modifiers: modifiers, role: role, hasSelection: selection)
+      ChatKeyAction(key: key, modifiers: modifiers, role: role, hasSelection: selection, isEmpty: empty)
     }
 
     XCTAssertNil(action(.return))
     XCTAssertNil(action(.return, [], .artefact))
+    XCTAssertEqual(action(.return, empty: true), .copyAndClose)
+    XCTAssertEqual(action(.keypadEnter, empty: true), .copyAndClose)
+    XCTAssertNil(action(.return, [], .artefact, empty: true))
+    XCTAssertNil(action(.return, [.shift], empty: true))
     XCTAssertEqual(action(.return, [.command]), .send)
     XCTAssertEqual(action(.escape), .close)
     XCTAssertEqual(action(.c, [.command]), .close)

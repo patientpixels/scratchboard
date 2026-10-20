@@ -36,6 +36,8 @@ final class ChatController: NSObject, NSTextViewDelegate {
       send()
     case .close:
       close()
+    case .copyAndClose:
+      copyAndClose()
     case .copySelection:
       textView.copy(nil)
     case .undo:
@@ -73,6 +75,14 @@ final class ChatController: NSObject, NSTextViewDelegate {
     let appState = AppState.shared
     appState.endChat()
     appState.popup.close()
+  }
+
+  // ↩ in an empty prompt: put the current version on the clipboard (replacing
+  // a selection copied from the chat, if that was last) and close.
+  func copyAndClose() {
+    commitArtefact()
+    session.copyCurrent()
+    close()
   }
 
   // Copies from inside the chat are scratch work: written as transient items

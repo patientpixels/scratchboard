@@ -7,6 +7,7 @@ import Sauce
 enum ChatKeyAction: Equatable {
   case send
   case close
+  case copyAndClose
   case copySelection
   case undo
   case redo
@@ -17,10 +18,19 @@ enum ChatKeyAction: Equatable {
   case paste
   case selectAll
 
-  init?(key: Key, modifiers: NSEvent.ModifierFlags, role: ChatTextView.Role, hasSelection: Bool) {
+  init?(
+    key: Key,
+    modifiers: NSEvent.ModifierFlags,
+    role: ChatTextView.Role,
+    hasSelection: Bool,
+    isEmpty: Bool = false
+  ) {
     switch (key, modifiers) {
     case (.return, [.command]), (.keypadEnter, [.command]):
       self = .send
+    case (.return, []) where role == .prompt && isEmpty,
+         (.keypadEnter, []) where role == .prompt && isEmpty:
+      self = .copyAndClose
     case (.escape, _):
       self = .close
     case (.c, [.command]):
@@ -121,7 +131,8 @@ final class ChatTextView: NSTextView {
             key: key,
             modifiers: modifiers,
             role: role,
-            hasSelection: selectedRanges.contains { $0.rangeValue.length > 0 }
+            hasSelection: selectedRanges.contains { $0.rangeValue.length > 0 },
+            isEmpty: string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
           ) else {
       return false
     }
