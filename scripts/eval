@@ -1,0 +1,38 @@
+#!/bin/sh
+# Usage: scripts/eval <model> [<model>...]     e.g. scripts/eval qwen3.5:9b-nvfp4 gpt-oss:20b
+#
+# Runs the real chat loop against local models (Ollama by default) on fixed
+# clips and prompts, and writes a Markdown report to .build/eval/.
+# Environment: RUNS (default 2), BASE_URL (default http://localhost:11434/v1).
+# Uses the GPU heavily but doesn't touch the clipboard or the UI.
+set -eu
+
+[ $# -gt 0 ] || { echo "usage: scripts/eval <model> [<model>...]" >&2; exit 64; }
+models=$(printf '%s,' "$@"); models=${models%,}
+
+cd "$(dirname "$0")/.."
+mkdir -p .build/eval
+log=.build/eval/last.log
+report=.build/eval/$(date +%Y%m%d-%H%M%S).md
+
+xcodebuild test \
+  -project Scratchboard.xcodeproj \
+  -scheme Scratchboard \
+  -testPlan Eval \
+  -derivedDataPath "${DERIVED_DATA:-.build/DerivedData}" \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+  SCRATCHBOARD_EVAL_MODELS="$models" \
+  SCRATCHBOARD_EVAL_RUNS="${RUNS:-2}" \
+  SCRATCHBOARD_EVAL_BASE_URL="${BASE_URL:-}" \
+  > "$log" 2>&1 || true
+
+sed -n '/SCRATCHBOARD_EVAL_REPORT_BEGIN/,/SCRATCHBOARD_EVAL_REPORT_END/p' "$log" \
+  | sed '1d;$d' > "$report"
+if [ -s "$report" ]; then
+  cat "$report"
+  echo "\nReport: $report"
+else
+  echo "No report produced; see $log" >&2
+  grep -E "error:|Skipped|\*\* TEST" "$log" | tail -5 >&2
+  exit 1
+fi

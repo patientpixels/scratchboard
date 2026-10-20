@@ -29,7 +29,8 @@
     {
       "skippedTests": [
         "ClipboardTests",
-        "KeychainTests\/testRealKeychainRoundTrip()"
+        "KeychainTests\/testRealKeychainRoundTrip()",
+        "ModelEvalTests"
       ],
       "target": {
         "containerPath": "container:Scratchboard.xcodeproj",

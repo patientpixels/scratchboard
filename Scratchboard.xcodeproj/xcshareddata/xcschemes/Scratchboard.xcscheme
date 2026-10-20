@@ -36,6 +36,9 @@
          <TestPlanReference
             reference = "container:E2E.xctestplan">
          </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Eval.xctestplan">
+         </TestPlanReference>
       </TestPlans>
       <Testables>
          <TestableReference
