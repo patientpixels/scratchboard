@@ -1,6 +1,6 @@
-project: Maccy.xcodeproj
+project: Scratchboard.xcodeproj
 retain_objc_accessible: true
 schemes:
-- Maccy
+- Scratchboard
 targets:
-- Maccy
+- Scratchboard
