@@ -8,8 +8,8 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
   let model: String
   let apiKey: String?
   var session: URLSession = .shared
-  // Sent as `reasoning_effort` when set. Ollama uses "none" to turn off
-  // thinking, which otherwise makes Qwen models end turns without a reply.
+  // Sent as `reasoning_effort` when set (e.g. "none" turns off thinking in
+  // Ollama). Unset by default: thinking stays on.
   var reasoningEffort: String?
 
   var displayName: String { model }
@@ -171,6 +171,12 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
     }
     try Task.checkCancellation()
     try accumulator.finish()
+    // A round that ends with neither an answer nor a tool call but with
+    // "reasoning" is a mislabelled answer; show it rather than nothing.
+    if accumulator.text.isEmpty, accumulator.toolCalls.isEmpty {
+      let reasoning = accumulator.reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !reasoning.isEmpty { continuation.yield(.textDelta(reasoning)) }
+    }
     return accumulator
   }
 

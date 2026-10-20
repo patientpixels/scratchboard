@@ -92,6 +92,30 @@ final class OpenAICompatibleProviderTests: XCTestCase {
     XCTAssertEqual(StubURLProtocol.requests.first?.body["reasoning_effort"], .string("none"))
   }
 
+  func testMislabelledReasoningBecomesTheReply() async throws {
+    StubURLProtocol.enqueue(chunks: [
+      sse(#"{"choices":[{"index":0,"delta":{"reasoning":"I've indented "}}]}"#),
+      sse(#"{"choices":[{"index":0,"delta":{"reasoning":"each line."}}]}"#),
+      done
+    ])
+
+    let events = try await collect(makeProvider(apiKey: nil).run(instructions: "", messages: [user("Hi")], tools: []))
+
+    XCTAssertEqual(events, [.textDelta("I've indented each line.")])
+  }
+
+  func testReasoningStaysHiddenWhenThereIsAnAnswer() async throws {
+    StubURLProtocol.enqueue(chunks: [
+      sse(#"{"choices":[{"index":0,"delta":{"reasoning_content":"The user wants a list."}}]}"#),
+      sse(text("Done.")),
+      done
+    ])
+
+    let events = try await collect(makeProvider(apiKey: nil).run(instructions: "", messages: [user("Hi")], tools: []))
+
+    XCTAssertEqual(events, [.textDelta("Done.")])
+  }
+
   // MARK: - Streaming
 
   func testStreamsText() async throws {

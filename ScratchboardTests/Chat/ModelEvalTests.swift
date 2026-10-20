@@ -96,7 +96,7 @@ final class ModelEvalTests: ChatTestCase {
     var loadTimes: [String: Double] = [:]
     for model in models {
       // Same settings as the app's Ollama provider.
-      let provider = OpenAICompatibleProvider(baseURL: baseURL, model: model, apiKey: nil, reasoningEffort: "none")
+      let provider = OpenAICompatibleProvider(baseURL: baseURL, model: model, apiKey: nil)
       loadTimes[model] = await warmUp(provider)
       for task in tasks {
         for _ in 1...runs {

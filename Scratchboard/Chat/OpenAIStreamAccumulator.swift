@@ -10,6 +10,9 @@ nonisolated struct OpenAIStreamAccumulator {
   }
 
   private(set) var text = ""
+  // Thinking, which isn't shown. Ollama sometimes files a Qwen model's whole
+  // answer here (when the model doesn't close its thinking after a tool call).
+  private(set) var reasoning = ""
   private(set) var isDone = false
   private var calls: [Int: ToolCall] = [:]
   private var sawData = false
@@ -58,6 +61,7 @@ nonisolated struct OpenAIStreamAccumulator {
       calls[index] = call
     }
 
+    reasoning += delta.reasoning ?? delta.reasoningContent ?? ""
     guard let content = delta.content, !content.isEmpty else { return nil }
     text += content
     return content
@@ -102,6 +106,8 @@ nonisolated struct OpenAIStreamAccumulator {
 
     struct Delta: Decodable {
       let content: String?
+      let reasoning: String?
+      let reasoningContent: String?
       let toolCalls: [ToolCallDelta]?
     }
 
