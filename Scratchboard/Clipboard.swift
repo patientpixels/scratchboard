@@ -10,7 +10,7 @@ class Clipboard {
   private var onNewCopyHooks: [OnNewCopyHook] = []
   var changeCount: Int
 
-  private let pasteboard = NSPasteboard.general
+  private let pasteboard: NSPasteboard
 
   private var timer: Timer?
 
@@ -39,7 +39,8 @@ class Clipboard {
 
   private var sourceApp: NSRunningApplication? { NSWorkspace.shared.frontmostApplication }
 
-  init() {
+  init(pasteboard: NSPasteboard = .general) {
+    self.pasteboard = pasteboard
     changeCount = pasteboard.changeCount
   }
 
@@ -79,6 +80,20 @@ class Clipboard {
     pasteboard.setString(NSPasteboard.PasteboardType.fromScratchboard.rawValue, forType: .source)
     sync()
     checkForChangesInPasteboard()
+  }
+
+  // Writes a string without recording it in history. Transient copies carry
+  // the nspasteboard.org marker so other clipboard managers skip them too;
+  // non-transient ones are left for the caller to add to history.
+  @MainActor
+  func copyUnrecorded(_ string: String, transient: Bool) {
+    pasteboard.clearContents()
+    pasteboard.setString(string, forType: .string)
+    pasteboard.setString("", forType: .fromScratchboard)
+    if transient {
+      pasteboard.setString("", forType: .transient)
+    }
+    changeCount = pasteboard.changeCount
   }
 
   @MainActor
