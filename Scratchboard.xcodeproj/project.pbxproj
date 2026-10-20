@@ -578,7 +578,7 @@
 		DABDE97E2974706C005B32E9 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
 		DAC14123232367B200FCFA30 /* Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Search.swift; sourceTree = "<group>"; };
 		DAC929D6297A0E8B00814F19 /* NSPasteboard.PasteboardType+Types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSPasteboard.PasteboardType+Types.swift"; sourceTree = "<group>"; };
-		DACCD5822C93605C00BAD74C /* Scratchboard.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Scratchboard.xctestplan; sourceTree = "<group>"; };
+		DACCD5822C93605C00BAD74C /* Unit.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Unit.xctestplan; sourceTree = "<group>"; };
 		DAD665652898A1C000975096 /* KeyChord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyChord.swift; sourceTree = "<group>"; };
 		DADFF1382C2F58D000DB261D /* cs */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = cs; path = cs.lproj/Localizable.strings; sourceTree = "<group>"; };
 		DAE284FF232257D20080E394 /* ColorImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorImage.swift; sourceTree = "<group>"; };
@@ -861,7 +861,7 @@
 				DAEE38451E3DBEB100DD2966 /* Scratchboard */,
 				DA360DB11E3DF137005C6F6B /* ScratchboardTests */,
 				DA0EE7B7204657830025FC60 /* ScratchboardUITests */,
-				DACCD5822C93605C00BAD74C /* Scratchboard.xctestplan */,
+				DACCD5822C93605C00BAD74C /* Unit.xctestplan */,
 				DA00992C256411F90030E697 /* appcast.xml */,
 				DA00992F256411F90030E697 /* LICENSE */,
 				DA00992D256411F90030E697 /* README.md */,

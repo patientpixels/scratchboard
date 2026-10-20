@@ -6,3 +6,6 @@ Scratchboard/.DS_Store
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Local build output
+.build/

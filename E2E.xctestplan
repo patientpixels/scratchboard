@@ -1,0 +1,50 @@
+{
+  "configurations": [
+    {
+      "id": "5C7A1E2B-0002-4C1A-9E2B-0000000000E2",
+      "name": "E2E",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "commandLineArgumentEntries": [
+      {
+        "argument": "enable-testing"
+      }
+    ],
+    "environmentVariableEntries": [
+      {
+        "key": "CI",
+        "value": "$(CI)"
+      }
+    ],
+    "targetForVariableExpansion": {
+      "containerPath": "container:Scratchboard.xcodeproj",
+      "identifier": "DAEE38421E3DBEB100DD2966",
+      "name": "Scratchboard"
+    },
+    "testRepetitionMode": "retryOnFailure"
+  },
+  "testTargets": [
+    {
+      "selectedTests": [
+        "AppleProviderTests\/testLiveToolCallUppercasesArtefact()",
+        "ClipboardTests",
+        "KeychainTests\/testRealKeychainRoundTrip()"
+      ],
+      "target": {
+        "containerPath": "container:Scratchboard.xcodeproj",
+        "identifier": "DA360DAF1E3DF137005C6F6B",
+        "name": "ScratchboardTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:Scratchboard.xcodeproj",
+        "identifier": "DA0EE7B5204657830025FC60",
+        "name": "ScratchboardUITests"
+      }
+    }
+  ],
+  "version": 1
+}

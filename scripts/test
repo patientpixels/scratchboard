@@ -1,0 +1,26 @@
+#!/bin/sh
+# Usage: scripts/test [unit|e2e] [extra xcodebuild args, e.g. -only-testing:ScratchboardTests/ChatSessionTests]
+#
+# unit  Safe to run any time: skips tests that touch the system clipboard, the
+#       Keychain, the on-device model or drive the UI. Runs at background
+#       priority so the Mac stays responsive.
+# e2e   The disruptive rest. Only run after telling the user (see CLAUDE.md).
+set -eu
+
+mode=${1:-unit}
+[ $# -gt 0 ] && shift
+
+case $mode in
+  unit) plan=Unit; prefix="taskpolicy -b" ;;
+  e2e) plan=E2E; prefix="" ;;
+  *) echo "usage: scripts/test [unit|e2e] [xcodebuild args]" >&2; exit 64 ;;
+esac
+
+cd "$(dirname "$0")/.."
+exec $prefix xcodebuild test \
+  -project Scratchboard.xcodeproj \
+  -scheme Scratchboard \
+  -testPlan "$plan" \
+  -derivedDataPath "${DERIVED_DATA:-.build/DerivedData}" \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+  "$@"
