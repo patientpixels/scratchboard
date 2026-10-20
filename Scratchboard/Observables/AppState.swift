@@ -18,6 +18,8 @@ class AppState: Sendable {
   var preview: SlideoutController
 
   var isEditingItem: Bool = false
+  // While set, the panel shows ChatView instead of the history list.
+  var chat: ChatSession?
   var suppressPopupAutoClose: Bool {
     return navigator.isDragAndDropInProgress || isEditingItem
   }
@@ -104,6 +106,45 @@ class AppState: Sendable {
       }
       navigator.select(item: nextUnselectedItem)
     }
+  }
+
+  @MainActor
+  func startChat() {
+    guard chat == nil,
+          !navigator.isMultiSelectInProgress,
+          let item = navigator.leadHistoryItem,
+          !item.hasImage, !item.hasFileURLs,
+          let session = ChatSession.open(for: item.item, provider: LLMProviderFactory.makeCurrent()) else {
+      return
+    }
+
+    preview.disableAutoOpen()
+    let previewWasOpen = preview.state.isOpen
+    if previewWasOpen {
+      preview.togglePreview()
+    }
+    chat = session
+
+    // The list may have sized the panel down to a few rows; give the chat room.
+    guard let panel = appDelegate?.panel else { return }
+    let height = max(panel.frame.height, min(Defaults[.windowSize].height, 560))
+    guard height > panel.frame.height else { return }
+    Task {
+      if previewWasOpen {
+        try? await Task.sleep(for: .milliseconds(300))
+      }
+      guard chat === session else { return }
+      panel.verticallyResize(to: height)
+    }
+  }
+
+  @MainActor
+  func endChat() {
+    guard let chat else { return }
+    self.chat = nil
+    chat.close()
+    // Undo actions refer to the closed session and its text views.
+    chat.undoManager?.removeAllActions()
   }
 
   func openAbout() {

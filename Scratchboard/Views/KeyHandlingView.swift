@@ -12,7 +12,7 @@ struct KeyHandlingView<Content: View>: View {
   var body: some View {
     content()
       .onKeyPress { _ in
-        guard !appState.isEditingItem else { return .ignored }
+        guard !appState.isEditingItem, appState.chat == nil else { return .ignored }
 
         // Unfortunately, key presses don't allow access to
         // key code and don't properly work with multiple inputs,
@@ -157,6 +157,9 @@ struct KeyHandlingView<Content: View>: View {
           return .handled
         case .togglePreview:
           appState.preview.togglePreview()
+          return .handled
+        case .startChat:
+          appState.startChat()
           return .handled
         default:
           ()
