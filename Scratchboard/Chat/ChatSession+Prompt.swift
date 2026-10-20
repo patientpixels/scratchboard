@@ -80,6 +80,20 @@ extension ChatSession {
   // (unterminated ones up to the end) and lines echoing the scaffolding of the
   // last message. While `streaming`, a trailing start of either is held back
   // so it doesn't flash. Text without any of this is returned unchanged.
+  // Some models copy the prompt's <artefact version="N"> wrapper into
+  // write_artefact's text; the wrapper is never part of the artefact.
+  nonisolated static func unwrapArtefactTags(_ text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("<artefact"), trimmed.hasSuffix("</artefact>"),
+          let open = trimmed.range(of: ">") else {
+      return text
+    }
+    var inner = trimmed[open.upperBound..<trimmed.index(trimmed.endIndex, offsetBy: -"</artefact>".count)]
+    if inner.hasPrefix("\n") { inner = inner.dropFirst() }
+    if inner.hasSuffix("\n") { inner = inner.dropLast() }
+    return String(inner)
+  }
+
   nonisolated static func sanitizeAssistantText(_ text: String, streaming: Bool) -> String {
     var result = text.replacingOccurrences(
       of: #"<artefact\b(?:[^>]*>[\s\S]*?(?:</artefact\s*>|\z)|[^>]*\z)|</artefact\s*>"#,

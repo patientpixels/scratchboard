@@ -75,7 +75,8 @@ final class ModelEvalTests: ChatTestCase {
       return fixed && !leftover && ratio > 0.85 && ratio < 1.15
     },
     EvalTask(name: "table", clip: csvClip, prompt: "make this a markdown table") { result in
-      let rows = lines(result).filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("|") }
+      // GitHub-flavoured Markdown doesn't require leading pipes.
+      let rows = lines(result).filter { $0.contains("|") }
       return rows.count >= 4 && result.contains("---") && result.contains("Ada") && result.contains("Grace")
     }
   ]

@@ -217,6 +217,7 @@ final class ChatSession {
   func writeArtefact(_ text: String, turn: UUID) throws -> String {
     guard self.turn == turn else { throw CancellationError() }
     executedTools += 1
+    let text = Self.unwrapArtefactTags(text)
     guard text != current?.text else {
       return "The text is identical to v\(currentNumber), so no new version was created."
     }

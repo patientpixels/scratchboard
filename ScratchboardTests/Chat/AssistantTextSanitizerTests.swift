@@ -96,4 +96,11 @@ final class AssistantTextSanitizerTests: ChatTestCase {
       "user:x", "assistant:Sure.\nRe", "version:2:assistant:-", "assistant:Done."
     ])
   }
+
+  func testUnwrapsArtefactTagsInToolText() {
+    XCTAssertEqual(ChatSession.unwrapArtefactTags("<artefact version=\"2\">\n\tA\n\tB\n</artefact>"), "\tA\n\tB")
+    XCTAssertEqual(ChatSession.unwrapArtefactTags("  <artefact version=\"3\">x</artefact>\n"), "x")
+    XCTAssertEqual(ChatSession.unwrapArtefactTags("plain <artefact> mention"), "plain <artefact> mention")
+    XCTAssertEqual(ChatSession.unwrapArtefactTags("\tindented\n"), "\tindented\n")
+  }
 }
