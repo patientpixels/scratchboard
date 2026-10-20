@@ -3,3 +3,6 @@ Scratchboard.xcodeproj/project.xcworkspace/xcshareddata
 .idea
 .DS_Store
 Scratchboard/.DS_Store
+
+# Claude Code agent worktrees
+.claude/worktrees/
