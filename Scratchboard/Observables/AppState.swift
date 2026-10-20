@@ -21,7 +21,7 @@ class AppState: Sendable {
   // While set, the panel shows ChatView instead of the history list.
   var chat: ChatSession?
   // The last closed chat. Opening the panel resumes it while nothing else has
-  // been copied since its last write (see `resumeChat()`). In private mode
+  // been copied since its last write (see `prepareResume()`). In private mode
   // this is the only place the session lives.
   @ObservationIgnored var lastChat: ChatSession?
   // Room the panel gets for a chat.
@@ -123,8 +123,17 @@ class AppState: Sendable {
     guard chat == nil,
           !navigator.isMultiSelectInProgress,
           let item = navigator.leadHistoryItem,
-          !item.hasImage, !item.hasFileURLs,
-          let session = ChatSession.open(for: item.item, provider: makeProvider(), clipboard: clipboard) else {
+          !item.hasImage, !item.hasFileURLs else {
+      return
+    }
+
+    let session: ChatSession
+    if let lastChat, lastChat.isLastWriteOnPasteboard, lastChat.belongs(to: item.item) {
+      lastChat.reopen()
+      session = lastChat
+    } else if let opened = ChatSession.open(for: item.item, provider: makeProvider(), clipboard: clipboard) {
+      session = opened
+    } else {
       return
     }
 
@@ -159,21 +168,21 @@ class AppState: Sendable {
     lastChat = chat
   }
 
-  // Called as the panel opens: goes back into the last chat, at its current
-  // version, if the pasteboard still holds that chat's last write. Once
-  // something else has been copied, the chat is dropped and the panel shows
-  // the list (Tab on the clip still resumes a stored session).
+  // Called as the panel opens. While the pasteboard still holds the last
+  // chat's last write, highlights that chat's clip so Tab resumes it (also in
+  // private mode). Once something else has been copied, the chat is dropped;
+  // Tab on a clip still resumes a stored session.
   @MainActor
-  @discardableResult
-  func resumeChat() -> Bool {
-    guard chat == nil, let session = lastChat else { return false }
-    lastChat = nil
-    guard session.isLastWriteOnPasteboard else { return false }
+  func prepareResume() {
+    guard chat == nil, let session = lastChat else { return }
+    guard session.isLastWriteOnPasteboard else {
+      lastChat = nil
+      return
+    }
 
-    session.reopen()
-    preview.disableAutoOpen()
-    chat = session
-    return true
+    if let item = history.items.first(where: { $0.item == session.resumeItem }) {
+      navigator.select(item: item)
+    }
   }
 
   func openAbout() {

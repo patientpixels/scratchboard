@@ -76,6 +76,14 @@ final class ChatSession {
     lastWriteChangeCount == clipboard.pasteboardChangeCount
   }
 
+  // The clip Tab resumes this session from: the saved final version, or the
+  // clip the session started from.
+  var resumeItem: HistoryItem { savedItem ?? item }
+
+  func belongs(to historyItem: HistoryItem) -> Bool {
+    historyItem == item || historyItem == savedItem
+  }
+
   @ObservationIgnored weak var undoManager: UndoManager?
   // The history item saved on close, if any.
   @ObservationIgnored private(set) var savedItem: HistoryItem?

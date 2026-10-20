@@ -128,7 +128,8 @@ final class ChatTextRoutingTests: XCTestCase {
     XCTAssertTrue(session.isLastWriteOnPasteboard)
 
     appState.endChat()
-    XCTAssertTrue(appState.resumeChat())
+    appState.prepareResume()
+    appState.startChat(provider: { nil }, clipboard: Clipboard(pasteboard: NSPasteboard(name: pasteboardName)))
     XCTAssertTrue(appState.chat === session)
   }
 

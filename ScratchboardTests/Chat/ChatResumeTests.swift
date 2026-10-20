@@ -3,8 +3,8 @@ import Defaults
 import XCTest
 @testable import Scratchboard
 
-// AppState resuming the last chat when the panel opens. The panel itself isn't
-// opened; `resumeChat()` is what it calls.
+// AppState resuming the last chat: the panel opens on the list
+// (`prepareResume()`), and Tab on the chat's clip goes back into it.
 @MainActor
 final class ChatResumeTests: XCTestCase {
   private let appState = AppState.shared
@@ -42,7 +42,7 @@ final class ChatResumeTests: XCTestCase {
     appState.endChat()
     XCTAssertNil(appState.chat)
 
-    XCTAssertTrue(appState.resumeChat())
+    XCTAssertTrue(resume(session))
 
     XCTAssertTrue(appState.chat === session)
     XCTAssertNil(appState.lastChat)
@@ -58,7 +58,7 @@ final class ChatResumeTests: XCTestCase {
     session.stepBack()
     appState.endChat()
 
-    XCTAssertTrue(appState.resumeChat())
+    XCTAssertTrue(resume(session))
 
     XCTAssertEqual(appState.chat?.currentNumber, 1)
     XCTAssertEqual(appState.chat?.versions.map(\.text), ["hello", "B", "C"])
@@ -72,17 +72,27 @@ final class ChatResumeTests: XCTestCase {
     pasteboard.clearContents()
     pasteboard.setString("elsewhere", forType: .string)
 
-    XCTAssertFalse(appState.resumeChat())
-    XCTAssertNil(appState.chat)
+    appState.prepareResume()
     XCTAssertNil(appState.lastChat)
+    XCTAssertFalse(resume(session))
   }
 
   func testDoesNotResumeChatThatNeverWrote() throws {
-    _ = try startChat()
+    let session = try startChat()
     appState.endChat()
 
-    XCTAssertFalse(appState.resumeChat())
+    XCTAssertFalse(resume(session))
+  }
+
+  func testPanelOpensOnListWithoutResuming() throws {
+    let session = try startChat()
+    session.copySelection("hel")
+    appState.endChat()
+
+    appState.prepareResume()
+
     XCTAssertNil(appState.chat)
+    XCTAssertTrue(appState.lastChat === session)
   }
 
   func testPrivateModeKeepsSessionInMemoryForResume() throws {
@@ -93,7 +103,7 @@ final class ChatResumeTests: XCTestCase {
     appState.endChat()
     XCTAssertTrue(appState.lastChat === session)
 
-    XCTAssertTrue(appState.resumeChat())
+    XCTAssertTrue(resume(session))
 
     XCTAssertTrue(appState.chat === session)
     XCTAssertEqual(session.versions.map(\.text), ["hello", "B"])
@@ -108,6 +118,13 @@ final class ChatResumeTests: XCTestCase {
     _ = try startChat()
 
     XCTAssertNil(appState.lastChat)
+  }
+
+  // What the panel does on open, then Tab on the still-selected clip.
+  private func resume(_ session: ChatSession) -> Bool {
+    appState.prepareResume()
+    appState.startChat(provider: { nil }, clipboard: Clipboard(pasteboard: pasteboard))
+    return appState.chat === session
   }
 
   // Closing these chats at v1 keeps History.shared empty: the test host's
