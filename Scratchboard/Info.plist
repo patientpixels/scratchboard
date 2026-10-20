@@ -32,6 +32,8 @@
 	<true/>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
+	<key>SUPublicEDKey</key>
+	<string>C/ZGcjXP9OGCxEBB1M0OkgGXpS+glkh11TNKeFpFR14=</string>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/patientpixels/scratchboard/main/appcast.xml</string>
 	<key>UTExportedTypeDeclarations</key>

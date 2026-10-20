@@ -1,0 +1,101 @@
+#!/bin/sh
+# Usage: TEAM_ID=<Apple team ID> scripts/release
+#
+# Builds the version set in the project (MARKETING_VERSION / CURRENT_PROJECT_VERSION),
+# signs it with Developer ID, notarizes and staples it, signs the update for Sparkle,
+# adds it to appcast.xml and publishes a GitHub release. One-time setup: docs/releasing.md.
+#
+# Environment: TEAM_ID (required), NOTARY_PROFILE (default scratchboard-notary),
+# NOTES (release notes file; default: GitHub's generated notes).
+set -eu
+
+: "${TEAM_ID:?Set TEAM_ID to your Apple Developer team ID (see docs/releasing.md)}"
+profile=${NOTARY_PROFILE:-scratchboard-notary}
+repo=patientpixels/scratchboard
+
+cd "$(dirname "$0")/.."
+[ -z "$(git status --porcelain)" ] || { echo "Working tree isn't clean." >&2; exit 1; }
+[ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "Release from main." >&2; exit 1; }
+
+settings=$(xcodebuild -project Scratchboard.xcodeproj -scheme Scratchboard -configuration Release -showBuildSettings 2>/dev/null)
+version=$(echo "$settings" | awk '$1 == "MARKETING_VERSION" { print $3 }')
+build=$(echo "$settings" | awk '$1 == "CURRENT_PROJECT_VERSION" { print $3 }')
+minimum=$(echo "$settings" | awk '$1 == "MACOSX_DEPLOYMENT_TARGET" { print $3 }')
+tag=v$version
+! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "Tag $tag exists; bump the version." >&2; exit 1; }
+
+out=.build/release/$version
+rm -rf "$out" && mkdir -p "$out"
+echo "==> Scratchboard $version ($build)"
+
+echo "==> Archive"
+xcodebuild archive -quiet \
+  -project Scratchboard.xcodeproj -scheme Scratchboard -configuration Release \
+  -archivePath "$out/Scratchboard.xcarchive" -derivedDataPath .build/ReleaseData \
+  DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application"
+
+echo "==> Export (Developer ID)"
+cat > "$out/ExportOptions.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>developer-id</string>
+  <key>teamID</key><string>$TEAM_ID</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Developer ID Application</string>
+</dict>
+</plist>
+PLIST
+xcodebuild -exportArchive -quiet -archivePath "$out/Scratchboard.xcarchive" \
+  -exportOptionsPlist "$out/ExportOptions.plist" -exportPath "$out"
+app=$out/Scratchboard.app
+
+echo "==> Notarize"
+ditto -c -k --keepParent "$app" "$out/notarize.zip"
+xcrun notarytool submit "$out/notarize.zip" --keychain-profile "$profile" --wait
+xcrun stapler staple "$app"
+spctl --assess --type execute --verbose "$app"
+
+echo "==> Package"
+zip=$out/Scratchboard-$version.zip
+ditto -c -k --keepParent "$app" "$zip"
+
+echo "==> Sign update and add it to appcast.xml"
+sign_update=$(find .build/ReleaseData/SourcePackages/artifacts -path "*Sparkle*/bin/sign_update" -not -path "*old_dsa*" | head -1)
+signature=$("$sign_update" --account scratchboard "$zip")
+url=https://github.com/$repo/releases/download/$tag/Scratchboard-$version.zip
+python3 -I - "$version" "$build" "$minimum" "$url" "$signature" <<'PY'
+import sys
+from email.utils import formatdate
+version, build, minimum, url, signature = sys.argv[1:]
+item = f"""    <item>
+      <title>{version}</title>
+      <link>https://github.com/patientpixels/scratchboard/releases/tag/v{version}</link>
+      <pubDate>{formatdate(usegmt=True)}</pubDate>
+      <sparkle:version>{build}</sparkle:version>
+      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>{minimum}</sparkle:minimumSystemVersion>
+      <enclosure url="{url}" type="application/octet-stream" {signature}/>
+    </item>
+"""
+with open("appcast.xml") as f:
+    feed = f.read()
+anchor = "    <language>en</language>\n"
+assert anchor in feed, "appcast.xml: <language> anchor missing"
+with open("appcast.xml", "w") as f:
+    f.write(feed.replace(anchor, anchor + item, 1))
+PY
+
+echo "==> Publish"
+git tag "$tag"
+git push origin "$tag"
+if [ -n "${NOTES:-}" ]; then
+  gh release create "$tag" "$zip" -R "$repo" --title "Scratchboard $version" --notes-file "$NOTES"
+else
+  gh release create "$tag" "$zip" -R "$repo" --title "Scratchboard $version" --generate-notes
+fi
+git add appcast.xml
+git commit -m "Release $version"
+git push origin main
+echo "==> Done: https://github.com/$repo/releases/tag/$tag"
