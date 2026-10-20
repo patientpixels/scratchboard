@@ -50,12 +50,14 @@ Each turn, the model gets a system prompt, the transcript with every version lab
 
 The loop runs until the model replies without calling a tool. The model is told to put artefact content only in tool calls, never in chat text, so every version can be pasted as-is. Chat text is sanitized regardless: `<artefact>` blocks and echoed `Request:` / `Current version:` lines are removed.
 
-Both providers support tool calling: FoundationModels via its `Tool` protocol, and OpenAI-compatible endpoints via the `tools` parameter. Apple's on-device model has a small context window, so it gets the current version plus the last few turns instead of the full history.
+Both providers speak the OpenAI-compatible `/chat/completions` API with streaming and the `tools` parameter, through one `OpenAICompatibleProvider`.
 
 ## Providers
 
-- **Apple on-device** (FoundationModels, macOS 26+, `#available`). Default when available.
-- **OpenAI-compatible** `/v1/chat/completions` with streaming and tools: base URL, model, API key (stored in Keychain). Covers OpenAI, OpenRouter, Ollama, LM Studio, and Anthropic's compatibility endpoint.
+- **Ollama** (default, local): base URL (prefilled `http://localhost:11434/v1`), no API key, model picked from `GET /models`. Settings shows "Running · N models" or "Can't reach Ollama at <url>" with install hints; the list is fetched when the AI pane opens or on refresh, never at launch.
+- **OpenAI-compatible API**: base URL, model, API key (stored in Keychain). Covers OpenAI, OpenRouter, LM Studio, and Anthropic's compatibility endpoint.
+
+Each keeps its own base URL and model, so switching doesn't clobber either. An unreachable server fails the send with "Can't reach <host>. Is the server running?". Apple's on-device model (FoundationModels) was tried and dropped: it couldn't do the edits reliably.
 
 Nothing is sent before ⌘↩. The prompt placeholder names the provider and model.
 
@@ -67,10 +69,10 @@ New code goes in `Scratchboard/Chat/`; edits to Maccy's code stay small so upstr
 - Introduce `VersionedSchema` + `SchemaMigrationPlan` in `Storage`: `SchemaV1` = Maccy's current `HistoryItem`/`HistoryItemContent`, `SchemaV2` = + `EditSession`, with a lightweight stage V1→V2. Existing Maccy-shaped stores open as V1 and migrate; future changes get explicit stages.
 - `ChatSession`: runtime controller over an `EditSession` (turn task, undo registration, transient copy). Uses an in-memory model when "Keep edit history" is off.
 - `ArtefactTools`: tool definitions + execution against `ChatSession`
-- `LLMProvider` protocol → `AppleProvider`, `OpenAICompatibleProvider`
+- `LLMProvider` protocol → `OpenAICompatibleProvider` (Ollama and cloud APIs)
 - `ChatView`: artefact editor (NSTextView-backed), transcript, prompt
 - `Keychain`: small SecItem wrapper
-- `AISettingsPane`: provider, base URL, model, key (English only)
+- `AISettingsPane`: provider, base URL, model (picker for Ollama), key (English only)
 
 Touch points in existing code: `KeyChord` (`.startChat`), `KeyHandlingView` (stay out of the way while chatting, like `isEditingItem`), `ContentView` (swap list ↔ chat, focus), `AppState` (`chat`, `startChat()`, `endChat()`, settings pane), `Clipboard` (transient copy).
 
@@ -80,7 +82,7 @@ Touch points in existing code: `KeyChord` (`.startChat`), `KeyHandlingView` (sta
 2. `ChatView` + Tab/⌘↩/Esc/⌘C/⌘Z wiring
 3. `OpenAICompatibleProvider` with streaming and tool calls (test the SSE + tool-call parsing)
 4. Settings pane + Keychain
-5. `AppleProvider`
+5. Ollama as the default local provider (model picker, reachability status)
 
 ## Not in v0.1
 

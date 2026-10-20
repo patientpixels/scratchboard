@@ -7,6 +7,8 @@ class LLMProviderFactoryTests: XCTestCase {
   let savedProvider = Defaults[.aiProvider]
   let savedBaseURL = Defaults[.aiBaseURL]
   let savedModel = Defaults[.aiModel]
+  let savedOllamaBaseURL = Defaults[.ollamaBaseURL]
+  let savedOllamaModel = Defaults[.ollamaModel]
 
   var savedKeychain: (any SecretStore)!
   var store: InMemorySecretStore!
@@ -23,6 +25,8 @@ class LLMProviderFactoryTests: XCTestCase {
     Defaults[.aiProvider] = savedProvider
     Defaults[.aiBaseURL] = savedBaseURL
     Defaults[.aiModel] = savedModel
+    Defaults[.ollamaBaseURL] = savedOllamaBaseURL
+    Defaults[.ollamaModel] = savedOllamaModel
     Keychain.shared = savedKeychain
   }
 
@@ -57,16 +61,26 @@ class LLMProviderFactoryTests: XCTestCase {
 
   // MARK: - Selection
 
-  func testAppleWhenAvailable() {
-    let resolution = LLMProviderFactory.resolve(config(kind: .apple, appleUnavailableReason: nil))
-    XCTAssertTrue(provider(resolution) is AppleProvider)
+  func testOllamaWithModel() throws {
+    let resolution = LLMProviderFactory.resolve(
+      config(kind: .ollama, baseURL: "http://localhost:11434/v1", model: " qwen3:8b ", apiKey: "sk-ignored")
+    )
+    let ollama = try XCTUnwrap(provider(resolution) as? OpenAICompatibleProvider)
+    XCTAssertEqual(ollama.baseURL, URL(string: "http://localhost:11434/v1"))
+    XCTAssertEqual(ollama.model, "qwen3:8b")
+    XCTAssertNil(ollama.apiKey)
   }
 
-  func testAppleUnavailable() {
-    let resolution = LLMProviderFactory.resolve(
-      config(kind: .apple, appleUnavailableReason: "Apple Intelligence is turned off")
-    )
-    XCTAssertEqual(reason(resolution), "Apple Intelligence is turned off")
+  func testOllamaWithoutModel() {
+    for model in ["", "  "] {
+      let resolution = LLMProviderFactory.resolve(config(kind: .ollama, model: model))
+      XCTAssertEqual(reason(resolution), "Choose an Ollama model in Settings → AI")
+    }
+  }
+
+  func testOllamaInvalidBaseURL() {
+    let resolution = LLMProviderFactory.resolve(config(kind: .ollama, baseURL: "localhost:11434", model: "qwen3:8b"))
+    XCTAssertEqual(reason(resolution), "Set a valid Ollama URL in Settings → AI")
   }
 
   func testOpenAICompatible() throws {
@@ -101,7 +115,7 @@ class LLMProviderFactoryTests: XCTestCase {
 
   func testFakeOverridesConfiguration() {
     let resolution = LLMProviderFactory.resolve(
-      config(kind: .apple, appleUnavailableReason: "Unavailable", useFake: true)
+      config(kind: .ollama, model: "", useFake: true)
     )
     XCTAssertTrue(provider(resolution) is FakeProvider)
   }
@@ -130,10 +144,39 @@ class LLMProviderFactoryTests: XCTestCase {
     XCTAssertEqual(LLMProviderFactory.unavailableReason(), "Set a model in Settings → AI")
   }
 
-  func testCurrentConfigurationSkipsKeychainForApple() throws {
-    Defaults[.aiProvider] = .apple
+  func testCurrentOllamaKeepsItsOwnSettings() throws {
+    Defaults[.aiProvider] = .ollama
+    Defaults[.ollamaBaseURL] = "http://127.0.0.1:11434/v1"
+    Defaults[.ollamaModel] = "qwen3:8b"
+    Defaults[.aiBaseURL] = "https://api.openai.com/v1"
+    Defaults[.aiModel] = "gpt-4.1-mini"
     try store.set("sk-unused", for: Keychain.aiAPIKey)
-    XCTAssertNil(LLMProviderFactory.Configuration.current.apiKey)
+
+    let configuration = LLMProviderFactory.Configuration.current
+    XCTAssertEqual(configuration.kind, .ollama)
+    XCTAssertEqual(configuration.baseURL, "http://127.0.0.1:11434/v1")
+    XCTAssertEqual(configuration.model, "qwen3:8b")
+    XCTAssertNil(configuration.apiKey)
+
+    Defaults[.aiProvider] = .openAICompatible
+    XCTAssertEqual(LLMProviderFactory.Configuration.current.baseURL, "https://api.openai.com/v1")
+    XCTAssertEqual(LLMProviderFactory.Configuration.current.model, "gpt-4.1-mini")
+    XCTAssertEqual(Defaults[.ollamaModel], "qwen3:8b")
+  }
+
+  func testCurrentOllamaWithoutModel() {
+    Defaults[.aiProvider] = .ollama
+    Defaults[.ollamaModel] = ""
+
+    XCTAssertNil(LLMProviderFactory.makeCurrent())
+    XCTAssertEqual(LLMProviderFactory.unavailableReason(), "Choose an Ollama model in Settings → AI")
+  }
+
+  func testStoredLegacyAppleProviderFallsBackToOllama() {
+    Defaults.Keys.aiProvider.suite.set("apple", forKey: Defaults.Keys.aiProvider.name)
+
+    XCTAssertEqual(Defaults[.aiProvider], .ollama)
+    XCTAssertEqual(LLMProviderFactory.Configuration.current.kind, .ollama)
   }
 
   // MARK: - Helpers
@@ -143,7 +186,6 @@ class LLMProviderFactoryTests: XCTestCase {
     baseURL: String = "https://api.openai.com/v1",
     model: String = "gpt-4.1-mini",
     apiKey: String? = nil,
-    appleUnavailableReason: String? = nil,
     useFake: Bool = false
   ) -> LLMProviderFactory.Configuration {
     LLMProviderFactory.Configuration(
@@ -151,7 +193,6 @@ class LLMProviderFactoryTests: XCTestCase {
       baseURL: baseURL,
       model: model,
       apiKey: apiKey,
-      appleUnavailableReason: appleUnavailableReason,
       useFake: useFake
     )
   }

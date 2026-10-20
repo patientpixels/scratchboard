@@ -53,7 +53,7 @@ nonisolated enum LLMError: LocalizedError, Equatable {
 }
 
 nonisolated protocol LLMProvider: Sendable {
-  // Shown in the prompt placeholder, e.g. "Apple Intelligence" or "gpt-6-luna".
+  // Shown in the prompt placeholder, e.g. "qwen3:8b" or "gpt-6-luna".
   var displayName: String { get }
 
   // Runs one agent turn: sends instructions + messages with tools, streams

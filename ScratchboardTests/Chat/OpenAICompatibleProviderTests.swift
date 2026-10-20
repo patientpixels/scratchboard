@@ -351,6 +351,94 @@ final class OpenAICompatibleProviderTests: XCTestCase {
     }
   }
 
+  func testConnectionFailuresBecomeUnavailable() async throws {
+    let codes: [URLError.Code] = [
+      .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .timedOut, .notConnectedToInternet
+    ]
+    for code in codes {
+      StubURLProtocol.enqueue(error: URLError(code))
+      let provider = makeProvider(baseURL: URL(string: "http://localhost:11434/v1")!)
+      await assertThrows(LLMError.unavailable("Can't reach localhost:11434. Is the server running?")) {
+        _ = try await self.collect(provider.run(instructions: "", messages: [self.user("Hi")], tools: []))
+      }
+    }
+  }
+
+  func testOtherURLErrorsPassThrough() async throws {
+    StubURLProtocol.enqueue(error: URLError(.badServerResponse))
+
+    do {
+      _ = try await collect(makeProvider().run(instructions: "", messages: [user("Hi")], tools: []))
+      XCTFail("Expected an error")
+    } catch let error as URLError {
+      XCTAssertEqual(error.code, .badServerResponse)
+    }
+  }
+
+  func testFriendlyErrorUsesHostWithoutPort() {
+    let error = OpenAICompatibleProvider.friendlyError(URLError(.cannotFindHost), baseURL: baseURL)
+    XCTAssertEqual(error as? LLMError, .unavailable("Can't reach api.example.com. Is the server running?"))
+  }
+
+  // MARK: - Model list
+
+  func testModelsParsesAndSortsIDs() async throws {
+    StubURLProtocol.enqueue(chunks: [#"""
+      {"object":"list","data":[
+        {"id":"qwen3:8b","object":"model","created":1,"owned_by":"library"},
+        {"id":"gemma3:12b","object":"model","created":2,"owned_by":"library"},
+        {"id":"qwen3:30b-a3b","object":"model","created":3,"owned_by":"library"}
+      ]}
+      """#])
+
+    let models = try await OpenAICompatibleProvider.models(
+      baseURL: URL(string: "http://localhost:11434/v1/")!,
+      session: makeSession()
+    )
+
+    XCTAssertEqual(models, ["gemma3:12b", "qwen3:8b", "qwen3:30b-a3b"])
+    let request = try XCTUnwrap(StubURLProtocol.requests.first)
+    XCTAssertEqual(request.url, "http://localhost:11434/v1/models")
+    XCTAssertEqual(request.method, "GET")
+    XCTAssertNil(request.headers["Authorization"])
+  }
+
+  func testModelsEmptyList() async throws {
+    StubURLProtocol.enqueue(chunks: [#"{"object":"list","data":[]}"#])
+
+    let models = try await OpenAICompatibleProvider.models(baseURL: baseURL, session: makeSession())
+
+    XCTAssertEqual(models, [])
+  }
+
+  func testModelsUnreachable() async throws {
+    StubURLProtocol.enqueue(error: URLError(.cannotConnectToHost))
+
+    await assertThrows(LLMError.unavailable("Can't reach localhost:11434. Is the server running?")) {
+      _ = try await OpenAICompatibleProvider.models(
+        baseURL: URL(string: "http://localhost:11434/v1")!,
+        session: self.makeSession()
+      )
+    }
+  }
+
+  func testModelsHTTPError() async throws {
+    StubURLProtocol.enqueue(status: 404, chunks: ["404 page not found"])
+
+    await assertThrows(LLMError.http(status: 404, body: "404 page not found")) {
+      _ = try await OpenAICompatibleProvider.models(baseURL: self.baseURL, session: self.makeSession())
+    }
+  }
+
+  func testModelsInvalidBody() async throws {
+    for body in ["<html>Ollama is running</html>", #"{"models":[{"name":"qwen3:8b"}]}"#] {
+      StubURLProtocol.enqueue(chunks: [body])
+      await assertThrows(LLMError.invalidResponse("Not a model list")) {
+        _ = try await OpenAICompatibleProvider.models(baseURL: self.baseURL, session: self.makeSession())
+      }
+    }
+  }
+
   // MARK: - Cancellation
 
   func testCancellingConsumerCancelsRequest() async throws {
@@ -373,14 +461,18 @@ final class OpenAICompatibleProviderTests: XCTestCase {
   // MARK: - Helpers
 
   private func makeProvider(baseURL: URL? = nil, apiKey: String? = "key") -> OpenAICompatibleProvider {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [StubURLProtocol.self]
-    return OpenAICompatibleProvider(
+    OpenAICompatibleProvider(
       baseURL: baseURL ?? self.baseURL,
       model: "gpt-test",
       apiKey: apiKey,
-      session: URLSession(configuration: configuration)
+      session: makeSession()
     )
+  }
+
+  private func makeSession() -> URLSession {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [StubURLProtocol.self]
+    return URLSession(configuration: configuration)
   }
 
   private func makeTool(_ name: String, counter: Counter? = nil) -> LLMTool {
@@ -494,6 +586,7 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     var status: Int
     var chunks: [String]
     var hang: Bool
+    var error: URLError?
   }
 
   struct Recorded {
@@ -517,6 +610,11 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
   static func enqueue(status: Int = 200, chunks: [String], hang: Bool = false) {
     lock.withLock { replies.append(Reply(status: status, chunks: chunks, hang: hang)) }
+  }
+
+  // Fails the request without a response, like an unreachable server.
+  static func enqueue(error: URLError) {
+    lock.withLock { replies.append(Reply(status: 0, chunks: [], hang: false, error: error)) }
   }
 
   static func reset() {
@@ -544,6 +642,10 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     }
     guard let reply, let url = request.url else {
       client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+      return
+    }
+    if let error = reply.error {
+      client?.urlProtocol(self, didFailWithError: error)
       return
     }
 

@@ -2,8 +2,8 @@
 # Usage: scripts/test [unit|e2e] [extra xcodebuild args, e.g. -only-testing:ScratchboardTests/ChatSessionTests]
 #
 # unit  Safe to run any time: skips tests that touch the system clipboard, the
-#       Keychain, the on-device model or drive the UI. Runs at background
-#       priority so the Mac stays responsive.
+#       Keychain or drive the UI. Runs at background priority so the Mac
+#       stays responsive.
 # e2e   The disruptive rest. Only run after telling the user (see CLAUDE.md).
 set -eu
 

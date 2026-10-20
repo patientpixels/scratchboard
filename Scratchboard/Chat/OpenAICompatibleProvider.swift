@@ -1,7 +1,7 @@
 import Foundation
 
-// Streams /chat/completions from any OpenAI-compatible endpoint (OpenAI,
-// OpenRouter, Ollama, LM Studio, Anthropic's compatibility endpoint) and runs
+// Streams /chat/completions from any OpenAI-compatible endpoint (Ollama,
+// OpenAI, OpenRouter, LM Studio, Anthropic's compatibility endpoint) and runs
 // the tool-calling loop.
 nonisolated struct OpenAICompatibleProvider: LLMProvider {
   let baseURL: URL
@@ -11,10 +11,53 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
 
   var displayName: String { model }
 
-  var endpoint: URL {
+  var endpoint: URL { Self.url(baseURL, appending: "chat/completions") }
+
+  // IDs from GET {baseURL}/models (the OpenAI-compatible model list), sorted.
+  static func models(baseURL: URL, session: URLSession = .shared) async throws -> [String] {
+    struct ModelList: Decodable {
+      struct Model: Decodable { let id: String }
+      let data: [Model]
+    }
+
+    var request = URLRequest(url: url(baseURL, appending: "models"))
+    request.timeoutInterval = 5
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await session.data(for: request)
+    } catch {
+      throw friendlyError(error, baseURL: baseURL)
+    }
+    guard let http = response as? HTTPURLResponse else {
+      throw LLMError.invalidResponse("Not an HTTP response")
+    }
+    guard (200..<300).contains(http.statusCode) else {
+      throw LLMError.http(status: http.statusCode, body: String(decoding: data.prefix(64_000), as: UTF8.self))
+    }
+    guard let list = try? JSONDecoder().decode(ModelList.self, from: data) else {
+      throw LLMError.invalidResponse("Not a model list")
+    }
+    return list.data.map(\.id).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+  }
+
+  // Connection failures become a readable "is the server running?" error.
+  static func friendlyError(_ error: Error, baseURL: URL) -> Error {
+    let unreachable: [URLError.Code] = [
+      .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .timedOut, .notConnectedToInternet
+    ]
+    guard let urlError = error as? URLError, unreachable.contains(urlError.code) else {
+      return error
+    }
+    var host = baseURL.host ?? baseURL.absoluteString
+    if let port = baseURL.port { host += ":\(port)" }
+    return LLMError.unavailable("Can't reach \(host). Is the server running?")
+  }
+
+  private static func url(_ baseURL: URL, appending path: String) -> URL {
     var string = baseURL.absoluteString
     while string.hasSuffix("/") { string.removeLast() }
-    return URL(string: string + "/chat/completions") ?? baseURL.appendingPathComponent("chat/completions")
+    return URL(string: string + "/" + path) ?? baseURL.appendingPathComponent(path)
   }
 
   func run(
@@ -28,7 +71,7 @@ nonisolated struct OpenAICompatibleProvider: LLMProvider {
           try await runLoop(instructions: instructions, messages: messages, tools: tools, continuation: continuation)
           continuation.finish()
         } catch {
-          continuation.finish(throwing: error)
+          continuation.finish(throwing: Self.friendlyError(error, baseURL: baseURL))
         }
       }
       continuation.onTermination = { _ in task.cancel() }

@@ -79,7 +79,10 @@ nonisolated extension Defaults.Keys {
 
   // Chat
   static let keepEditHistory = Key<Bool>("keepEditHistory", default: true, suite: preferencesSuite)
-  static let aiProvider = Key<LLMProviderKind>("aiProvider", default: .apple, suite: preferencesSuite)
+  static let aiProvider = Key<LLMProviderKind>("aiProvider", default: .ollama, suite: preferencesSuite)
+  static let ollamaBaseURL = Key<String>("ollamaBaseURL", default: "http://localhost:11434/v1", suite: preferencesSuite)
+  static let ollamaModel = Key<String>("ollamaModel", default: "", suite: preferencesSuite)
+  // OpenAI-compatible API
   static let aiBaseURL = Key<String>("aiBaseURL", default: "https://api.openai.com/v1", suite: preferencesSuite)
   static let aiModel = Key<String>("aiModel", default: "", suite: preferencesSuite)
 }

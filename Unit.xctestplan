@@ -28,7 +28,6 @@
   "testTargets": [
     {
       "skippedTests": [
-        "AppleProviderTests\/testLiveToolCallUppercasesArtefact()",
         "ClipboardTests",
         "KeychainTests\/testRealKeychainRoundTrip()"
       ],

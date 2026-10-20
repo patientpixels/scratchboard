@@ -10,6 +10,20 @@ Free and open source (MIT).
 
 Open `Scratchboard.xcodeproj` in Xcode 26+, pick your signing team, and run the `Scratchboard` scheme. Requires macOS 14+.
 
+## AI setup
+
+Chats need a model. The default is [Ollama](https://ollama.com), running locally:
+
+```sh
+brew install ollama
+brew services start ollama
+ollama pull <model>
+```
+
+Pick a model with tool support: around 9B parameters suits a 16 GB Mac; with more memory, try larger or mixture-of-experts models. Then choose it in Settings → AI.
+
+Or use any OpenAI-compatible API (OpenAI, OpenRouter, LM Studio, Anthropic's compatibility endpoint): pick "OpenAI-compatible API" in Settings → AI and enter the base URL, model and API key. The key is stored in your Keychain.
+
 ## Credits
 
 Built on [Maccy](https://github.com/p0deje/Maccy) by Alex Rodionov and its contributors. Upstream fixes are pulled via the `upstream` remote.
