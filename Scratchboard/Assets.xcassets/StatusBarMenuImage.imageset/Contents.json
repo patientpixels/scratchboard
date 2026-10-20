@@ -1,43 +1,16 @@
 {
   "images" : [
     {
-      "idiom" : "mac",
-      "filename" : "DarkMenuBar-16w.png",
-      "scale" : "1x"
-    },
-    {
-      "idiom" : "mac",
-      "filename" : "LightMenuBar-16w.png",
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "dark"
-        }
-      ],
-      "scale" : "1x"
-    },
-    {
-      "idiom" : "mac",
-      "filename" : "DarkMenuBar-32w.png",
-      "scale" : "2x"
-    },
-    {
-      "idiom" : "mac",
-      "filename" : "LightMenuBar-32w.png",
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "dark"
-        }
-      ],
-      "scale" : "2x"
+      "filename" : "StatusBar.svg",
+      "idiom" : "universal"
     }
   ],
   "info" : {
-    "version" : 1,
-    "author" : "xcode"
+    "author" : "xcode",
+    "version" : 1
   },
   "properties" : {
+    "preserves-vector-representation" : true,
     "template-rendering-intent" : "template"
   }
 }

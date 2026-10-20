@@ -1,102 +1,24 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "display-p3:1.00000,0.57647,0.97647,1.00000",
-      "srgb:1.00000,0.61176,0.35294,1.00000"
+      "srgb:0.17255,0.17255,0.18824,1.00000",
+      "srgb:0.10196,0.10196,0.10980,1.00000"
     ],
     "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
-      },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
-      }
+      "start" : { "x" : 0.5, "y" : 0 },
+      "stop" : { "x" : 0.5, "y" : 1 }
     }
   },
   "groups" : [
     {
-      "blur-material-specializations" : [
-        {
-          "value" : 0.2
-        },
-        {
-          "appearance" : "dark",
-          "value" : 0.2
-        }
-      ],
-      "layers" : [
-        {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : "none"
-            }
-          ],
-          "image-name" : "3 - Layer.svg",
-          "name" : "3 - Layer"
-        }
-      ],
-      "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 0.5
-      },
-      "specular" : true,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
+      "layers" : [ { "image-name" : "clamp.svg", "name" : "clamp" } ],
+      "shadow" : { "kind" : "layer-color", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.3 }
     },
     {
-      "layers" : [
-        {
-          "image-name" : "2 - Layer.svg",
-          "name" : "2 - Layer"
-        }
-      ],
-      "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "layers" : [
-        {
-          "image-name" : "1 - Layer.svg",
-          "name" : "1 - Layer"
-        }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "hidden" : false,
-      "layers" : [
-        {
-          "image-name" : "0 - Layer.svg",
-          "name" : "0 - Layer"
-        }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 1
-      },
-      "specular" : false,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 1
-      }
+      "layers" : [ { "image-name" : "loop.svg", "name" : "loop" } ],
+      "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.3 }
     }
   ],
   "supported-platforms" : {
