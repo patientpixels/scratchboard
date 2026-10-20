@@ -552,6 +552,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     }
   }
 
+  // The list's decorator for an item, whether or not a search hides it.
+  func storedItem(for item: HistoryItem) -> HistoryItemDecorator? {
+    firstStoredItem { $0.item == item }
+  }
+
   private func firstStoredItem(
     where predicate: (HistoryItemDecorator) -> Bool
   ) -> HistoryItemDecorator? {

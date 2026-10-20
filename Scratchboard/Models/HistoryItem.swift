@@ -2,7 +2,6 @@ import AppKit
 import Defaults
 import Sauce
 import SwiftData
-import Vision
 
 @Model
 class HistoryItem {
@@ -261,24 +260,6 @@ class HistoryItem {
       return nil
     }
 
-    let requestHandler = VNImageRequestHandler(data: data)
-    let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .accurate
-    request.automaticallyDetectsLanguage = true
-
-    do {
-      try requestHandler.perform([request])
-    } catch {
-      print("Unable to perform the request: \(error).")
-      return nil
-    }
-
-    guard let observations = request.results else {
-      return nil
-    }
-
-    return observations
-      .compactMap { $0.topCandidates(1).first?.string }
-      .joined(separator: "\n")
+    return await TextRecognizer.recognizeText(imageData: data)
   }
 }

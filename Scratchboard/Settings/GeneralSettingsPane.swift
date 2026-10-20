@@ -46,6 +46,12 @@ struct GeneralSettingsPane: View {
           .accessibilityLabel(Text("Open", tableName: "GeneralSettings"))
       }
 
+      Settings.Section(label: { Text("Capture text") }) {
+        KeyboardShortcuts.Recorder(for: .captureText)
+          .help(Text("Capture text from screen"))
+          .accessibilityLabel(Text("Capture text from screen"))
+      }
+
       Settings.Section(label: { Text("Pin", tableName: "GeneralSettings") }) {
         KeyboardShortcuts.Recorder(for: .pin)
           .help(Text("PinTooltip", tableName: "GeneralSettings"))

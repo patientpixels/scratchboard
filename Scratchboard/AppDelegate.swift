@@ -109,6 +109,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     migrateUserDefaults()
     disableUnusedGlobalHotkeys()
+    // Not in the test host: a key press during a test run must not start a capture.
+    if !Self.isTesting {
+      KeyboardShortcuts.onKeyDown(for: .captureText) { ScreenTextCapture.shared.start() }
+    }
 
     panel = FloatingPanel(
       contentRect: NSRect(origin: .zero, size: Defaults[.windowSize]),
