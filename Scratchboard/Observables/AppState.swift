@@ -118,7 +118,8 @@ class AppState: Sendable {
       let appearanceTitle = NSLocalizedString("Title", tableName: "AppearanceSettings", comment: "")
       let ignoreTitle = NSLocalizedString("Title", tableName: "IgnoreSettings", comment: "")
       let advancedTitle = NSLocalizedString("Title", tableName: "AdvancedSettings", comment: "")
-      let toolbarTitles = [generalTitle, storageTitle, appearanceTitle, ignoreTitle, advancedTitle]
+      let aiTitle = "AI"
+      let toolbarTitles = [generalTitle, storageTitle, appearanceTitle, ignoreTitle, aiTitle, advancedTitle]
       let titleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
       let titleWidth = toolbarTitles.reduce(CGFloat.zero) {
         $0 + ($1 as NSString).size(withAttributes: titleAttributes).width
@@ -159,6 +160,14 @@ class AppState: Sendable {
             toolbarIcon: NSImage.nosign!
           ) {
             IgnoreSettingsPane()
+              .frame(minWidth: minimumWidth)
+          },
+          Settings.Pane(
+            identifier: Settings.PaneIdentifier.ai,
+            title: aiTitle,
+            toolbarIcon: NSImage(systemSymbolName: "sparkles", accessibilityDescription: aiTitle)!
+          ) {
+            AISettingsPane()
               .frame(minWidth: minimumWidth)
           },
           Settings.Pane(
