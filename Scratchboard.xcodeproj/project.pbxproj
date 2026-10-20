@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -608,6 +608,19 @@
 		FFFC00000000000000000004 /* UnsafeForTitleLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsafeForTitleLayoutTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1C0FFEE0000000000000001 /* Chat */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		A1C0FFEE0000000000000002 /* Chat */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Chat;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		DA0EE7B3204657830025FC60 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -777,6 +790,7 @@
 		DA360DB11E3DF137005C6F6B /* ScratchboardTests */ = {
 			isa = PBXGroup;
 			children = (
+				A1C0FFEE0000000000000002 /* Chat */,
 				DA48AE852A5F0077006D4894 /* Fixtures */,
 				DA3CE7FF1E44A62500B3AA98 /* ClipboardTests.swift */,
 				CA110ED10000000000000002 /* CollectionSurroundingTests.swift */,
@@ -869,6 +883,7 @@
 		DAEE38451E3DBEB100DD2966 /* Scratchboard */ = {
 			isa = PBXGroup;
 			children = (
+				A1C0FFEE0000000000000001 /* Chat */,
 				2FBB7A252B5FECBB00C65BBE /* Extensions */,
 				DA68F91F28BD819E007E2F25 /* Intents */,
 				DA05B50F2C234C1C006980FE /* Models */,
@@ -949,6 +964,9 @@
 			dependencies = (
 				DA360DB61E3DF137005C6F6B /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				A1C0FFEE0000000000000002 /* Chat */,
+			);
 			name = ScratchboardTests;
 			productName = ScratchboardTests;
 			productReference = DA360DB01E3DF137005C6F6B /* ScratchboardTests.xctest */;
@@ -966,6 +984,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1C0FFEE0000000000000001 /* Chat */,
 			);
 			name = Scratchboard;
 			packageProductDependencies = (

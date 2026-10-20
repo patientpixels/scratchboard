@@ -76,4 +76,10 @@ nonisolated extension Defaults.Keys {
   static let showApplicationIcons = Key<Bool>("showApplicationIcons", default: false, suite: preferencesSuite)
   static let showHexColorSwatch = Key<Bool>("showHexColorSwatch", default: true, suite: preferencesSuite)
   static let previewWidth = Key<CGFloat>("previewWidth", default: 400, suite: preferencesSuite)
+
+  // Chat
+  static let keepEditHistory = Key<Bool>("keepEditHistory", default: true, suite: preferencesSuite)
+  static let aiProvider = Key<LLMProviderKind>("aiProvider", default: .apple, suite: preferencesSuite)
+  static let aiBaseURL = Key<String>("aiBaseURL", default: "https://api.openai.com/v1", suite: preferencesSuite)
+  static let aiModel = Key<String>("aiModel", default: "", suite: preferencesSuite)
 }
