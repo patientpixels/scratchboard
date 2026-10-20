@@ -40,14 +40,19 @@ enum KeyChord: CaseIterable {
   case selectCurrentItem
   case close
   case togglePreview
+  case startChat
   case unknown
 
   init(_ event: NSEvent?) {
-    guard let event, event.type == .keyDown else {
+    guard let event, event.type == .keyDown, let (key, modifierFlags) = Self.keyAndModifiers(event) else {
       self = .unknown
       return
     }
 
+    self.init(key, modifierFlags)
+  }
+
+  static func keyAndModifiers(_ event: NSEvent) -> (Key, NSEvent.ModifierFlags)? {
     let modifierFlags = event.modifierFlags
       .intersection(.deviceIndependentFlagsMask)
       .subtracting([.capsLock, .numericPad, .function])
@@ -59,12 +64,8 @@ enum KeyChord: CaseIterable {
       key = Sauce.shared.key(for: Int(event.keyCode))
     }
 
-    guard let key else {
-      self = .unknown
-      return
-    }
-
-    self.init(key, modifierFlags)
+    guard let key else { return nil }
+    return (key, modifierFlags)
   }
 
   // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -125,6 +126,8 @@ enum KeyChord: CaseIterable {
       self = .close
     case (KeyChord.previewKey, KeyChord.previewModifiers):
       self = .togglePreview
+    case (.tab, []):
+      self = .startChat
     case (_, _) where !modifierFlags.isDisjoint(with: [.command, .control, .option]):
       self = .ignored
     default:

@@ -84,6 +84,7 @@ class Popup {
   func reset() {
     state = .toggle
     KeyboardShortcuts.enable(.popup)
+    AppState.shared.endChat()
   }
 
   func close() {
@@ -148,7 +149,8 @@ class Popup {
 
   private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
     if isHotKeyCode(Int(event.keyCode)) {
-      if let item = History.shared.pressedShortcutItem {
+      // While chatting, typed keys must not trigger pinned items.
+      if AppState.shared.chat == nil, let item = History.shared.pressedShortcutItem {
         AppState.shared.navigator.select(item: item)
         let modifierFlags = NSEvent.ModifierFlags.currentModifierFlags
         Task { @MainActor in
