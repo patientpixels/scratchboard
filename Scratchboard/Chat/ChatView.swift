@@ -50,17 +50,27 @@ struct ChatView: View {
       Divider()
         .padding(.vertical, Popup.verticalSeparatorPadding)
 
-      HStack(alignment: .bottom, spacing: 6) {
-        PromptEditorView(controller: controller, placeholder: placeholder)
-          .frame(height: 54)
-        Text("⌘↩")
-          .foregroundStyle(.tertiary)
-          .padding(.bottom, 2)
-      }
-      .padding(.horizontal, Popup.horizontalPadding)
+      PromptEditorView(controller: controller, placeholder: placeholder)
+        .frame(height: 54)
+        .padding(.horizontal, Popup.horizontalPadding)
+
+      ChatHintBar(hints: hints)
+        .padding(.horizontal, Popup.horizontalPadding)
+        .padding(.top, 6)
     }
     .padding(.horizontal, Popup.horizontalPadding)
     .padding(.vertical, Popup.verticalPadding * 2)
+  }
+
+  // The keys that matter right now.
+  private var hints: [(key: String, label: String)] {
+    if chat.isRunning {
+      return [("esc", "stop & close")]
+    }
+    if controller.prompt.isEmpty {
+      return [("↩", "copy & close"), ("⌘Z ⇧⌘Z", "versions"), ("⇥", "edit text"), ("esc", "close")]
+    }
+    return [("⌘↩", "send"), ("↩", "new line"), ("esc", "close")]
   }
 
   private var placeholder: String {
@@ -112,6 +122,39 @@ private struct PromptEditorView: NSViewRepresentable {
     if textView.placeholder != placeholder {
       textView.placeholder = placeholder
     }
+  }
+}
+
+// A row of key caps with labels, e.g. "⌘↩ send · esc close".
+private struct ChatHintBar: View {
+  let hints: [(key: String, label: String)]
+
+  var body: some View {
+    HStack(spacing: 12) {
+      ForEach(hints, id: \.key) { hint in
+        KeyHint(key: hint.key, label: hint.label)
+      }
+      Spacer(minLength: 0)
+    }
+    .accessibilityElement(children: .combine)
+  }
+}
+
+struct KeyHint: View {
+  let key: String
+  let label: String
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Text(key)
+        .font(.caption.weight(.medium))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 1)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+      Text(label)
+        .font(.caption)
+    }
+    .foregroundStyle(.secondary)
   }
 }
 

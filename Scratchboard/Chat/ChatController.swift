@@ -1,9 +1,17 @@
 import AppKit
+import Observation
+
+// What the hint bar needs to know about the prompt.
+@Observable
+final class ChatPromptState {
+  var isEmpty = true
+}
 
 // Glue between ChatView's two text views and the ChatSession: key actions,
 // focus, committing manual artefact edits and the shared undo stack.
 final class ChatController: NSObject, NSTextViewDelegate {
   let session: ChatSession
+  let prompt = ChatPromptState()
 
   weak var artefactView: ChatTextView? {
     didSet {
@@ -68,6 +76,7 @@ final class ChatController: NSObject, NSTextViewDelegate {
 
     session.send(prompt)
     replaceText(in: promptView, with: "")
+    self.prompt.isEmpty = true
   }
 
   func close() {
@@ -233,6 +242,11 @@ final class ChatController: NSObject, NSTextViewDelegate {
   }
 
   // MARK: NSTextViewDelegate
+
+  func textDidChange(_ notification: Notification) {
+    guard let textView = notification.object as? ChatTextView, textView === promptView else { return }
+    prompt.isEmpty = textView.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
 
   // Text edits and version changes share the window's undo stack.
   func undoManager(for view: NSTextView) -> UndoManager? {

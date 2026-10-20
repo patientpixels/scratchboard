@@ -53,6 +53,7 @@ struct HistoryItemView: View {
       isSelected: item.isSelected,
       selectionIndex: item.multiSelectionIndex,
       selectionAppearance: selectionAppearance,
+      showsEditHint: item.item.text != nil && !item.hasImage && !item.hasFileURLs,
       accessibilityLabel: item.accessibilityLabel
     ) {
       Text(verbatim: item.title)

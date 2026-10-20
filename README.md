@@ -21,6 +21,8 @@ Free and open source (MIT). Built on [Maccy](https://github.com/p0deje/Maccy).
 | Tab / ⇧Tab | Move between the prompt and the text, which you can edit yourself |
 | Esc, ⌘C | Close; the current version is on the clipboard |
 
+**⌘F3** captures text from the screen: select a region, and the recognised text becomes a clip with the chat open on it, so you can fix what was misread ("fix the OCR errors", "make this a table"). The shortcut can be changed in Settings → General; the first capture asks for Screen Recording permission.
+
 Sessions are saved with the clip: open the panel again, press Tab on it and carry on where you left off. Turn off Settings → AI → "Keep edit history" to keep chats in memory only.
 
 ## Install

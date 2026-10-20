@@ -40,6 +40,8 @@ struct ListItemView<Title: View, ID: Hashable>: View {
   var selectionIndex: Int?
   var help: LocalizedStringKey?
   var selectionAppearance: SelectionAppearance = .none
+  // Shows "⇥ Edit" while selected: Tab opens the chat on this clip.
+  var showsEditHint = false
   // Complete description used when the row's visual content is hidden from accessibility.
   var accessibilityLabel: String = ""
   @ViewBuilder var title: () -> Title
@@ -91,6 +93,20 @@ struct ListItemView<Title: View, ID: Hashable>: View {
       Spacer()
 
       HStack(spacing: 5) {
+        if showsEditHint && isSelected && displaySelectionIndex == nil {
+          HStack(spacing: 3) {
+            Text("⇥")
+              .font(.caption.weight(.medium))
+              .padding(.horizontal, 4)
+              .padding(.vertical, 1)
+              .background(Color.white.opacity(0.25), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            Text("Edit")
+              .font(.caption)
+          }
+          .opacity(0.9)
+          .accessibilityHidden(true)
+        }
+
         if let displaySelectionIndex {
           Text(displaySelectionIndex)
             .font(.caption)
