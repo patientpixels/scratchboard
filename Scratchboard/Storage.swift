@@ -28,13 +28,42 @@ class Storage {
     #endif
 
     do {
-      container = try ModelContainer(for: HistoryItem.self, configurations: config)
+      container = try Self.makeContainer(configuration: config)
     } catch let error {
       fatalError("Cannot load database: \(error.localizedDescription).")
     }
   }
 
+  static func makeContainer(configuration: ModelConfiguration) throws -> ModelContainer {
+    try ModelContainer(
+      for: Schema(versionedSchema: SchemaV2.self),
+      migrationPlan: StorageMigrationPlan.self,
+      configurations: configuration
+    )
+  }
+
+  // Deletes edit sessions that no history item links to anymore.
+  @discardableResult
+  func deleteOrphanedEditSessions() -> Int {
+    EditSession.deleteOrphans(in: context)
+  }
+
+  // Bulk deletion can't nullify the item → edit session relationship, so
+  // items have to be detached before they're bulk-deleted.
+  func detachEditSessions(unpinnedOnly: Bool) {
+    let descriptor = FetchDescriptor<HistoryItem>(predicate: #Predicate { $0.editSession != nil })
+    guard let items = try? context.fetch(descriptor) else { return }
+
+    for item in items where !unpinnedOnly || item.pin == nil {
+      item.editSession = nil
+      item.editSessionVersion = nil
+    }
+    context.processPendingChanges()
+    try? context.save()
+  }
+
   func cleanupOrphanedContents() throws -> Int {
+    deleteOrphanedEditSessions()
     let descriptor = FetchDescriptor<HistoryItemContent>(
       predicate: #Predicate { $0.item == nil }
     )
@@ -92,5 +121,59 @@ class Storage {
     try context.save()
 
     return count
+  }
+}
+
+nonisolated enum StorageMigrationPlan: SchemaMigrationPlan {
+  static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
+  static var stages: [MigrationStage] {
+    [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)]
+  }
+}
+
+// Current schema: the top-level `HistoryItem`, `HistoryItemContent` and
+// `EditSession` models.
+nonisolated enum SchemaV2: VersionedSchema {
+  static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
+  static var models: [any PersistentModel.Type] {
+    [HistoryItem.self, HistoryItemContent.self, EditSession.self]
+  }
+}
+
+// The unversioned schema Maccy writes. It must match those model definitions
+// exactly, or existing stores aren't recognized as V1.
+nonisolated enum SchemaV1: VersionedSchema {
+  static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
+  static var models: [any PersistentModel.Type] { [HistoryItem.self, HistoryItemContent.self] }
+
+  @Model
+  class HistoryItem {
+    var application: String?
+    var firstCopiedAt: Date = Date.now
+    var lastCopiedAt: Date = Date.now
+    var numberOfCopies: Int = 1
+    var pin: String?
+    var title = ""
+
+    @Relationship(deleteRule: .cascade, inverse: \HistoryItemContent.item)
+    var contents: [HistoryItemContent] = []
+
+    init(contents: [HistoryItemContent] = []) {
+      self.contents = contents
+    }
+  }
+
+  @Model
+  class HistoryItemContent {
+    var type: String = ""
+    var value: Data?
+
+    @Relationship
+    var item: HistoryItem?
+
+    init(type: String, value: Data? = nil) {
+      self.type = type
+      self.value = value
+    }
   }
 }

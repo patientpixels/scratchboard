@@ -84,6 +84,11 @@ class HistoryItem {
   @Relationship(deleteRule: .cascade, inverse: \HistoryItemContent.item)
   var contents: [HistoryItemContent] = []
 
+  // The chat edit session this clip started or resulted from, and the
+  // version number it corresponds to.
+  var editSession: EditSession?
+  var editSessionVersion: Int?
+
   @Transient private var cachedDecodedImage: NSImage?
 
   init(contents: [HistoryItemContent] = []) {

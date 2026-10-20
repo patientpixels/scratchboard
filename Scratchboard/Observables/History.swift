@@ -174,6 +174,10 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       item.firstCopiedAt = existingHistoryItem.firstCopiedAt
       item.numberOfCopies += existingHistoryItem.numberOfCopies
       item.pin = existingHistoryItem.pin
+      if item.editSession == nil {
+        item.editSession = existingHistoryItem.editSession
+        item.editSessionVersion = existingHistoryItem.editSessionVersion
+      }
       item.title = existingHistoryItem.title
       if !item.fromScratchboard {
         item.application = existingHistoryItem.application
@@ -187,6 +191,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
         }
       }
       deleteFromStorage(existingHistoryItem)
+      Storage.shared.deleteOrphanedEditSessions()
     } else {
       Task {
         Notifier.notify(body: item.title, sound: .write)
@@ -241,6 +246,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       allUnpinnedItems.removeAll()
       filteredUnpinnedItems.removeAll()
       sessionLog.removeValues { $0.pin == nil }
+      Storage.shared.detachEditSessions(unpinnedOnly: true)
 
       try? Storage.shared.context.transaction {
         try? Storage.shared.context.delete(
@@ -254,6 +260,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       }
       Storage.shared.context.processPendingChanges()
       try? Storage.shared.context.save()
+      Storage.shared.deleteOrphanedEditSessions()
     }
 
     Clipboard.shared.clear()
@@ -273,6 +280,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       filteredUnpinnedItems.removeAll()
       pinManager.removeAll()
       sessionLog.removeAll()
+      Storage.shared.detachEditSessions(unpinnedOnly: false)
 
       do {
         let context = Storage.shared.context
@@ -290,6 +298,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       }
       Storage.shared.context.processPendingChanges()
       try? Storage.shared.context.save()
+      Storage.shared.deleteOrphanedEditSessions()
     }
 
     Clipboard.shared.clear()
@@ -308,6 +317,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       deleteFromStorage(item.item)
       Storage.shared.context.processPendingChanges()
       try? Storage.shared.context.save()
+      Storage.shared.deleteOrphanedEditSessions()
     }
 
     pinManager.remove(item)
