@@ -1,6 +1,6 @@
 # Scratchboard v0.1: chat on a clip
 
-Lean, keyboard-first. A chat loop with an LLM that operates on a versioned artefact. Text clips only.
+Lean, keyboard-first. A chat loop with an LLM that operates on a versioned artefact. Text clips only (including rich text: tables and formatting, see below).
 
 ## Interaction
 
@@ -51,6 +51,17 @@ Each turn, the model gets a system prompt, the transcript with every version lab
 The loop runs until the model replies without calling a tool. The model is told to put artefact content only in tool calls, never in chat text, so every version can be pasted as-is. Chat text is sanitized regardless: `<artefact>` blocks and echoed `Request:` / `Current version:` lines are removed.
 
 Both providers speak the OpenAI-compatible `/chat/completions` API with streaming and the `tools` parameter, through one `OpenAICompatibleProvider`.
+
+## Rich text clips (#19)
+
+Clips with tables or formatting keep their structure. A clip counts as rich when it has RTF or HTML content with structure plain text can't carry (tables, lists, bold, italic, links, headings); colour-only formatting and text set entirely in a monospaced font (code) stay plain, and plain clips behave as before.
+
+- **Editing format: simplified HTML.** `RichText` loads the clip into `NSAttributedString` (RTF preferred, else HTML) and serializes it to a compact subset: `table/tr/th/td` (with `colspan`/`rowspan`), `p`, `br`, `b`, `i`, `a href`, `ul/ol/li`, `h1`–`h3`. No CSS, classes, fonts or colours. Tables come from `NSTextTableBlock`, lists from `NSTextList`; a bold, centred cell is a `th`, a bold paragraph larger than the body text a heading.
+- **Format per version:** `ArtefactVersion.format` (`plain` / `html`), stored in the versions JSON. Sessions stored before this decode as plain, so there's no schema change.
+- **Model:** HTML sessions get instructions naming the subset; `write_artefact` takes complete HTML, which is normalized through the converter (tags outside the subset dropped or mapped, code fences removed).
+- **Pasteboard:** every write of an HTML version (auto-copies and the saved history item) carries `public.rtf`, `public.html` (the simplified HTML with a UTF-8 charset tag) and plain text, where each table row is one line of tab-separated cells and list items get `•` / `1.` markers.
+- **Editor:** shows rich text; manual edits serialize back to the subset on commit (focus change, send, close). Unchanged text never creates a version.
+- **Failures:** a clip whose RTF/HTML can't be read opens as plain text, and a version that can't be converted is copied as plain text; both add an error to the transcript.
 
 ## Providers
 

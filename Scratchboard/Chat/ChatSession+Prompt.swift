@@ -1,7 +1,25 @@
 import Foundation
 
 extension ChatSession {
-  static let instructions = """
+  // For plain text artefacts.
+  static let instructions = makeInstructions(artefactRule: """
+    - The text you pass to write_artefact is pasted as-is. Give the complete artefact with no \
+    preamble, explanation or surrounding quotes, and don't wrap it in Markdown code fences unless \
+    the artefact is code that should be fenced.
+    """)
+
+  // For rich text artefacts (tables, formatting), which the model edits as
+  // simplified HTML; Scratchboard converts it for pasting.
+  static let htmlInstructions = makeInstructions(artefactRule: """
+    - The artefact is formatted text, such as a table, written as simplified HTML. Pass write_artefact \
+    the complete new artefact as valid HTML using only these tags: \(RichText.allowedTags). No CSS, \
+    style or class attributes, fonts, colours, or html, head and body tags, and no preamble, \
+    explanation or code fences. Scratchboard turns the HTML into formatted text for pasting, so \
+    keep every row and cell the user didn't ask you to change.
+    """)
+
+  private static func makeInstructions(artefactRule: String) -> String {
+    """
     You are a writing assistant in Scratchboard, a clipboard manager. You and the user work on one \
     piece of text, the artefact, which started as a clip from their clipboard. Every change creates \
     a numbered version; v1 is the original clip. The current version is always on the user's \
@@ -9,9 +27,7 @@ extension ChatSession {
 
     - Change the artefact only by calling tools: write_artefact creates a new version from the \
     complete new text, restore_version makes an earlier version current again.
-    - The text you pass to write_artefact is pasted as-is. Give the complete artefact with no \
-    preamble, explanation or surrounding quotes, and don't wrap it in Markdown code fences unless \
-    the artefact is code that should be fenced.
+    \(artefactRule)
     - Always end your turn with a chat reply, also after using tools. Talk with the user: say what \
     you changed and why in a sentence or two, \
     point out anything you weren't sure about, and suggest a next step when it helps. If the request \
@@ -23,6 +39,7 @@ extension ChatSession {
     by the request. Earlier versions appear in the conversation, labelled vN, so you can refer to \
     or restore them.
     """
+  }
 
   // Earlier turns are flattened into plain messages, with version events as
   // user-side notes carrying the full text. The last message is

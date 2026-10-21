@@ -10,14 +10,44 @@ nonisolated enum ArtefactAuthor: String, Codable, Sendable {
   case user
 }
 
+// What an artefact's text is: plain text, or editing HTML for rich text clips
+// (tables, formatting; see RichText).
+nonisolated enum ArtefactFormat: String, Codable, Sendable {
+  case plain
+  case html
+}
+
 nonisolated struct ArtefactVersion: Identifiable, Equatable, Codable, Sendable {
   // 1-based; v1 is the original clip.
   let number: Int
   let text: String
   let author: ArtefactAuthor
   let createdAt: Date
+  // Missing in sessions stored before rich text clips: plain.
+  let format: ArtefactFormat
 
   var id: Int { number }
+
+  init(number: Int, text: String, author: ArtefactAuthor, createdAt: Date, format: ArtefactFormat = .plain) {
+    self.number = number
+    self.text = text
+    self.author = author
+    self.createdAt = createdAt
+    self.format = format
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case number, text, author, createdAt, format
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    number = try container.decode(Int.self, forKey: .number)
+    text = try container.decode(String.self, forKey: .text)
+    author = try container.decode(ArtefactAuthor.self, forKey: .author)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    format = try container.decodeIfPresent(ArtefactFormat.self, forKey: .format) ?? .plain
+  }
 }
 
 nonisolated enum TranscriptEntry: Identifiable, Equatable, Codable, Sendable {
@@ -45,7 +75,8 @@ nonisolated enum TranscriptEntry: Identifiable, Equatable, Codable, Sendable {
 //
 // API contract:
 // - Every change of the current version writes it to the pasteboard as a
-//   transient item.
+//   transient item. Rich text sessions (`format == .html`) write HTML, RTF
+//   and plain text; plain ones plain text only.
 // - `undoManager`: when set, version changes register undo actions on it so
 //   text edits and version changes share one stack. When it has nothing to
 //   undo, the UI calls `stepBack()` / `stepForward()`.
@@ -68,6 +99,8 @@ final class ChatSession {
 
   var current: ArtefactVersion? { versions.first { $0.number == currentNumber } }
   var providerName: String? { provider?.displayName }
+  // Plain text, or editing HTML for clips with tables or formatting.
+  let format: ArtefactFormat
 
   // True while the pasteboard still holds the session's last write (a
   // version, the saved final version or a copied selection), i.e. nothing
@@ -108,10 +141,15 @@ final class ChatSession {
   // sanitized. The segment began when the transcript had `start` entries; it
   // has an entry only once something visible is left.
   @ObservationIgnored private var assistantSegment = (start: -1, id: UUID(), raw: "")
+  // Pasteboard representations of HTML versions (versions never change), and
+  // versions that couldn't be converted and went out as plain text.
+  @ObservationIgnored private var representations: [Int: RichText.Representations] = [:]
+  @ObservationIgnored private var failedConversions: Set<Int> = []
 
   // Resumes the session linked to `item` at the version the item corresponds
-  // to, or starts a new one with the item's text as v1. Returns nil for clips
-  // without text.
+  // to, or starts a new one with the item's text as v1: as editing HTML if
+  // the clip has tables or formatting (RTF or HTML content), else as plain
+  // text. Returns nil for clips without text.
   static func open(
     for item: HistoryItem,
     provider: (any LLMProvider)?,
@@ -119,21 +157,37 @@ final class ChatSession {
   ) -> ChatSession? {
     guard let text = item.text else { return nil }
 
-    let session = ChatSession(item: item, provider: provider, clipboard: clipboard)
     if let stored = item.editSession, !stored.isDeleted, case let versions = stored.versions, !versions.isEmpty {
+      let session = ChatSession(item: item, format: versions[0].format, provider: provider, clipboard: clipboard)
       session.stored = stored
       session.versions = versions
       session.transcript = stored.transcript
       let number = item.editSessionVersion ?? stored.currentNumber
       session.currentNumber = versions.indices.contains(number - 1) ? number : versions.count
-    } else {
-      session.versions = [ArtefactVersion(number: 1, text: text, author: .original, createdAt: .now)]
+      return session
+    }
+
+    let content = RichText.editingHTML(rtf: item.rtfData, html: item.htmlData)
+    if case .rich(let html) = content {
+      let session = ChatSession(item: item, format: .html, provider: provider, clipboard: clipboard)
+      session.versions = [ArtefactVersion(number: 1, text: html, author: .original, createdAt: .now, format: .html)]
+      return session
+    }
+
+    let session = ChatSession(item: item, format: .plain, provider: provider, clipboard: clipboard)
+    session.versions = [ArtefactVersion(number: 1, text: text, author: .original, createdAt: .now)]
+    if content == .failed {
+      session.transcript = [.error(
+        id: UUID(),
+        message: "Couldn't read the clip's formatting, so it's edited as plain text."
+      )]
     }
     return session
   }
 
-  private init(item: HistoryItem, provider: (any LLMProvider)?, clipboard: Clipboard) {
+  private init(item: HistoryItem, format: ArtefactFormat, provider: (any LLMProvider)?, clipboard: Clipboard) {
     self.item = item
+    self.format = format
     self.provider = provider
     self.clipboard = clipboard
   }
@@ -156,7 +210,7 @@ final class ChatSession {
     seenToolCalls = 0
     isRunning = true
     let stream = provider.run(
-      instructions: Self.instructions,
+      instructions: format == .html ? Self.htmlInstructions : Self.instructions,
       messages: renderMessages(),
       tools: ArtefactTools.make(for: self, turn: turn)
     )
@@ -172,10 +226,12 @@ final class ChatSession {
     endTurn()
   }
 
-  // Appends `text` as a user-authored version, unless it equals the current one.
+  // Appends `text` (editing HTML in rich text sessions, see
+  // `RichText.html(from:)`) as a user-authored version, unless it equals the
+  // current one.
   func commitManualEdit(_ text: String) {
     guard !isClosed, text != current?.text else { return }
-    appendVersion(text, author: .user, restoredFrom: nil)
+    appendVersion(text, author: .user, restoredFrom: nil, format: format)
   }
 
   // Moves the current-version pointer; returns false at the ends.
@@ -217,12 +273,17 @@ final class ChatSession {
   func writeArtefact(_ text: String, turn: UUID) throws -> String {
     guard self.turn == turn else { throw CancellationError() }
     executedTools += 1
-    let text = Self.unwrapArtefactTags(text)
+    var text = Self.unwrapArtefactTags(text)
+    // HTML is brought into the allowed subset, so every version converts
+    // cleanly for pasting. Unreadable HTML is kept as written.
+    if format == .html, let html = RichText.normalize(text) {
+      text = html
+    }
     guard text != current?.text else {
       return "The text is identical to v\(currentNumber), so no new version was created."
     }
 
-    appendVersion(text, author: .assistant, restoredFrom: nil)
+    appendVersion(text, author: .assistant, restoredFrom: nil, format: format)
     return "Saved as v\(currentNumber), which is now the current version."
   }
 
@@ -236,7 +297,7 @@ final class ChatSession {
       return "v\(number) is already the current version."
     }
 
-    appendVersion(version.text, author: .assistant, restoredFrom: number)
+    appendVersion(version.text, author: .assistant, restoredFrom: number, format: version.format)
     return "Restored v\(number) as v\(currentNumber), which is now the current version."
   }
 
@@ -315,8 +376,10 @@ final class ChatSession {
 
   // MARK: Versions
 
-  private func appendVersion(_ text: String, author: ArtefactAuthor, restoredFrom: Int?) {
-    let version = ArtefactVersion(number: versions.count + 1, text: text, author: author, createdAt: .now)
+  private func appendVersion(_ text: String, author: ArtefactAuthor, restoredFrom: Int?, format: ArtefactFormat) {
+    let version = ArtefactVersion(
+      number: versions.count + 1, text: text, author: author, createdAt: .now, format: format
+    )
     versions.append(version)
     let entry = TranscriptEntry.version(id: UUID(), number: version.number, author: author, restoredFrom: restoredFrom)
     if turn != nil, author == .assistant, seenToolCalls < executedTools {
@@ -363,13 +426,53 @@ final class ChatSession {
   // a selection copied from the chat.
   func copyCurrent() {
     guard let current else { return }
-    write(current.text, transient: true)
+    write(current, transient: true)
   }
 
-  private func write(_ text: String, transient: Bool, isSelection: Bool = false) {
-    clipboard.copyUnrecorded(text, transient: transient)
+  private func write(_ version: ArtefactVersion, transient: Bool) {
+    if let rich = pasteboardRepresentations(of: version) {
+      write(rich.plain, html: rich.html, rtf: rich.rtf, transient: transient)
+    } else {
+      write(version.text, transient: transient)
+    }
+  }
+
+  private func write(
+    _ text: String,
+    html: String? = nil,
+    rtf: Data? = nil,
+    transient: Bool,
+    isSelection: Bool = false
+  ) {
+    clipboard.copyUnrecorded(text, html: html, rtf: rtf, transient: transient)
     lastWriteChangeCount = clipboard.pasteboardChangeCount
     lastWriteIsSelection = isSelection
+  }
+
+  // HTML, RTF and plain text for an HTML version; nil for plain versions and
+  // versions that can't be converted, which go out as plain text (with an
+  // error in the transcript, once per version).
+  private func pasteboardRepresentations(of version: ArtefactVersion) -> RichText.Representations? {
+    guard version.format == .html, !failedConversions.contains(version.number) else { return nil }
+    if let cached = representations[version.number] {
+      return cached
+    }
+    guard let converted = RichText.representations(forHTML: version.text) else {
+      failedConversions.insert(version.number)
+      let entry = TranscriptEntry.error(
+        id: UUID(),
+        message: "Couldn't convert v\(version.number) to formatted text, so it's on the clipboard as plain text."
+      )
+      // Written by a tool whose version entry is still held: after it.
+      if turn != nil, seenToolCalls < executedTools {
+        heldEntries.append((executedTools, entry))
+      } else {
+        transcript.append(entry)
+      }
+      return nil
+    }
+    representations[version.number] = converted
+    return converted
   }
 
   // MARK: Persistence
@@ -399,10 +502,18 @@ final class ChatSession {
   }
 
   private func saveToHistory(_ version: ArtefactVersion, linkingTo session: EditSession?) {
-    let historyItem = HistoryItem(contents: [
-      HistoryItemContent(type: NSPasteboard.PasteboardType.string.rawValue, value: Data(version.text.utf8)),
-      HistoryItemContent(type: NSPasteboard.PasteboardType.fromScratchboard.rawValue, value: Data())
-    ])
+    var contents: [HistoryItemContent] = []
+    if let rich = pasteboardRepresentations(of: version) {
+      contents = [
+        HistoryItemContent(type: NSPasteboard.PasteboardType.rtf.rawValue, value: rich.rtf),
+        HistoryItemContent(type: NSPasteboard.PasteboardType.html.rawValue, value: Data(rich.html.utf8)),
+        HistoryItemContent(type: NSPasteboard.PasteboardType.string.rawValue, value: Data(rich.plain.utf8))
+      ]
+    } else {
+      contents = [HistoryItemContent(type: NSPasteboard.PasteboardType.string.rawValue, value: Data(version.text.utf8))]
+    }
+    contents.append(HistoryItemContent(type: NSPasteboard.PasteboardType.fromScratchboard.rawValue, value: Data()))
+    let historyItem = HistoryItem(contents: contents)
     Storage.shared.context.insert(historyItem)
     historyItem.application = Bundle.main.bundleIdentifier
     historyItem.title = historyItem.generateTitle()
@@ -413,7 +524,7 @@ final class ChatSession {
 
     // A selection copied last is what the user wants to paste next.
     if !(lastWriteIsSelection && isLastWriteOnPasteboard) {
-      write(version.text, transient: false)
+      write(version, transient: false)
     }
     savedItem = History.shared.add(historyItem).item
     savedNumber = version.number

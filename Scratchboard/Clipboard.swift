@@ -84,12 +84,20 @@ class Clipboard {
     checkForChangesInPasteboard()
   }
 
-  // Writes a string without recording it in history. Transient copies carry
-  // the nspasteboard.org marker so other clipboard managers skip them too;
-  // non-transient ones are left for the caller to add to history.
+  // Writes a string, optionally with rich text representations, without
+  // recording it in history. Transient copies carry the nspasteboard.org
+  // marker so other clipboard managers skip them too; non-transient ones are
+  // left for the caller to add to history.
   @MainActor
-  func copyUnrecorded(_ string: String, transient: Bool) {
+  func copyUnrecorded(_ string: String, html: String? = nil, rtf: Data? = nil, transient: Bool) {
     pasteboard.clearContents()
+    // Richest first; apps take the first type they support.
+    if let rtf {
+      pasteboard.setData(rtf, forType: .rtf)
+    }
+    if let html {
+      pasteboard.setData(Data(html.utf8), forType: .html)
+    }
     pasteboard.setString(string, forType: .string)
     pasteboard.setString("", forType: .fromScratchboard)
     if transient {

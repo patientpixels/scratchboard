@@ -13,6 +13,8 @@ Free and open source (MIT). Built on [Maccy](https://github.com/p0deje/Maccy).
 3. Tell the assistant what to do ("make this a bullet list", "fix typos", "shorter") and press **⌘↩**. It edits the text and tells you what it changed.
 4. Each edit is a new version and lands on your clipboard immediately. **Esc**, then **⌘V** wherever you need it.
 
+Tables and formatting survive: a table copied from TextEdit, Pages or a web page is edited as a table and pastes as one into Mail, Pages or TextEdit, and as tab-separated text into plain-text fields.
+
 | Key | In the chat |
 |---|---|
 | ⌘↩ | Send |

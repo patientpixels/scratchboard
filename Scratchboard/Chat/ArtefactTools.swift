@@ -8,19 +8,27 @@ enum ArtefactTools {
   static let restoreName = "restore_version"
 
   static func make(for session: ChatSession, turn: UUID) -> [LLMTool] {
-    [
+    let isHTML = session.format == .html
+    return [
       LLMTool(
         name: writeName,
-        description: """
-          Replace the artefact with a new version. Pass the complete new text, exactly as it should be \
-          pasted: no preamble, no explanations, no surrounding code fences.
-          """,
+        description: isHTML
+          ? """
+            Replace the artefact with a new version. Pass the complete new artefact as valid HTML using \
+            only these tags: \(RichText.allowedTags). No CSS, no preamble, no explanations, no code fences.
+            """
+          : """
+            Replace the artefact with a new version. Pass the complete new text, exactly as it should be \
+            pasted: no preamble, no explanations, no surrounding code fences.
+            """,
         parameters: .object([
           "type": .string("object"),
           "properties": .object([
             "text": .object([
               "type": .string("string"),
-              "description": .string("The complete text of the new version.")
+              "description": .string(isHTML
+                ? "The complete HTML of the new version."
+                : "The complete text of the new version.")
             ])
           ]),
           "required": .array([.string("text")])

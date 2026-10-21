@@ -21,6 +21,9 @@ final class ChatController: NSObject, NSTextViewDelegate {
   weak var promptView: ChatTextView?
 
   private var displayedVersion: Int?
+  // While the artefact editor shows rich text: the editing HTML its unchanged
+  // contents serialize to. Nil while it shows plain text.
+  private var richBaseline: String?
   private weak var observedWindow: NSWindow?
   private var didFocusPrompt = false
   private var keyMonitor: Any?
@@ -114,7 +117,15 @@ final class ChatController: NSObject, NSTextViewDelegate {
 
   func commitArtefact() {
     guard isActive, let artefactView, artefactView.isEditable else { return }
-    session.commitManualEdit(artefactView.string)
+    if let richBaseline {
+      // Rich text goes back through the same serializer; unchanged text
+      // serializes to the baseline and creates no version.
+      let html = RichText.html(from: artefactView.attributedString())
+      guard html != richBaseline else { return }
+      session.commitManualEdit(html)
+    } else {
+      session.commitManualEdit(artefactView.string)
+    }
   }
 
   func undo(with undoManager: UndoManager?) {
@@ -137,11 +148,47 @@ final class ChatController: NSObject, NSTextViewDelegate {
     }
   }
 
-  // Shows `version` in the artefact editor when the current version changed.
+  // Shows `version` in the artefact editor when the current version changed:
+  // HTML versions as rich text (falling back to their source if they can't be
+  // converted), plain ones as plain text.
   func display(_ version: ArtefactVersion?) {
     guard let artefactView, displayedVersion != version?.number else { return }
     displayedVersion = version?.number
+
+    if let version, version.format == .html,
+       let attributed = RichText.attributedString(fromHTML: version.text, for: .editor) {
+      displayRich(attributed, html: version.text, in: artefactView)
+      return
+    }
+
+    richBaseline = nil
+    if artefactView.isRichText {
+      artefactView.isRichText = false
+      artefactView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+    }
     replaceText(in: artefactView, with: version?.text ?? "")
+  }
+
+  private func displayRich(_ attributed: NSAttributedString, html: String, in textView: ChatTextView) {
+    // After a manual edit, the editor already shows the new version: keep
+    // the selection and scroll position.
+    if richBaseline != nil, RichText.html(from: textView.attributedString()) == html {
+      richBaseline = html
+      textView.breakUndoCoalescing()
+      return
+    }
+
+    let text = NSMutableAttributedString(attributedString: attributed)
+    text.addAttribute(
+      .foregroundColor,
+      value: textView.textColor ?? .labelColor,
+      range: NSRange(location: 0, length: text.length)
+    )
+    textView.isRichText = true
+    replaceText(in: textView, with: text)
+    // What unchanged text serializes to, even where the HTML import doesn't
+    // round-trip exactly.
+    richBaseline = RichText.html(from: textView.attributedString())
   }
 
   func textViewDidMoveToWindow(_ textView: ChatTextView) {
@@ -231,6 +278,17 @@ final class ChatController: NSObject, NSTextViewDelegate {
       textView.setSelectedRange(NSRange(location: 0, length: 0))
       textView.scrollToBeginningOfDocument(nil)
     }
+    dropTypingUndo(in: textView)
+  }
+
+  private func replaceText(in textView: ChatTextView, with text: NSAttributedString) {
+    textView.textStorage?.setAttributedString(text)
+    textView.setSelectedRange(NSRange(location: 0, length: 0))
+    textView.scrollToBeginningOfDocument(nil)
+    dropTypingUndo(in: textView)
+  }
+
+  private func dropTypingUndo(in textView: ChatTextView) {
     textView.breakUndoCoalescing()
 
     // The view's typing undo actions refer to the old text. Drop them once the
